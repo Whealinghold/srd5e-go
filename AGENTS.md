@@ -114,7 +114,7 @@ srd5e-go/
 ├── .gitignore
 ├── .codacy.yml
 ├── .gomuignore             # packages excluded from mutation testing
-├── Makefile
+├── justfile
 ├── CHANGELOG.md
 ├── LICENSE                 # MIT, covers code
 ├── NOTICE.md               # CC-BY-4.0 attribution; covers content/data/ only
@@ -173,15 +173,15 @@ Update this section when the structure changes.
 
 ## Commands
 
-Go is installed locally; no Docker is needed except for mutation testing. Run through the Makefile:
+Go is installed locally; no Docker is needed except for mutation testing. Run through the `justfile` (`just --list` shows the recipes):
 
 ```sh
-make fmt        # gofmt
-make vet        # go vet ./...
-make lint       # golangci-lint run ./...
-make test       # go test -race -shuffle=on -cover ./...
-make arch       # architecture tests
-make check      # what CI runs: gofmt, vet, lint, coverage (cover-check), go mod tidy -diff, arch, fuzz-smoke
+just fmt        # gofmt
+just vet        # go vet ./...
+just lint       # golangci-lint run ./...
+just test       # go test -race -shuffle=on -cover ./...
+just arch       # architecture tests
+just check      # what CI runs: gofmt, vet, lint, coverage (cover-check), go mod tidy -diff, arch, fuzz-smoke
 ```
 
 Mutation testing (`gomu`) is never run on the host. Run it only inside Docker

@@ -17,7 +17,7 @@
 
 <!-- doc/rules/go.md checklist and doc/rules/architecture.md §9. -->
 
-- [ ] `make check` passes (gofmt, go vet, golangci-lint, `go test -race -shuffle=on -cover`, `go mod tidy`, architecture tests)
+- [ ] `just check` passes (gofmt, go vet, golangci-lint, `go test -race -shuffle=on -cover`, `go mod tidy`, architecture tests)
 - [ ] Every exported identifier has a doc comment; every fallible function documents what it returns on each failure class
 - [ ] Public API additions follow the compatibility promise in doc/rules/go.md §9
 

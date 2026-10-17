@@ -364,7 +364,7 @@ func RunRollerContract(t *testing.T, factory func(t *testing.T) dice.Roller)
 
   `-race` already implies `-covermode=atomic`. Do not add `-coverpkg=./...`:
   it reports each package as a share of the whole module, which cannot be
-  compared with the 90% floor (use it only for a module-wide report). `make
+  compared with the 90% floor (use it only for a module-wide report). `just
   cover-check` (plain per-package `-cover`) is the authoritative gate; it
   exempts `scenarios`, `internal/` and packages with no statements. Use
   `-cover` for a quick per-package percentage while developing. Report the statement coverage of
@@ -394,11 +394,11 @@ container CPU quota (`--cpus`) and gomu's `--workers` capped at one quarter of
 the host's processors (minimum 1):
 
 ```sh
-make mutate            # whole module
-make mutate PKG=./srderr   # one package
+just mutate            # whole module
+just mutate ./srderr     # one package
 ```
 
-`make mutate` wraps this (verified on this host with gomu v0.2.1, 2026-10-17):
+`just mutate` wraps this (verified on this host with gomu v0.2.1, 2026-10-17):
 
 ```sh
 cpus=$(( $(nproc) / 4 )); cpus=$(( cpus < 1 ? 1 : cpus ))
@@ -439,7 +439,7 @@ Verified gomu v0.2.1 CLI (`gomu run --help`):
 - **Surviving mutants** are fixed with a better test. Only a mutant that
   provably cannot change behaviour (an *equivalent* mutant) may be excluded, and
   the reason is written beside it or in `.gomuignore`.
-- **Pinned version.** The Makefile `mutate` target (also used by CI) holds the fixed tag
+- **Pinned version.** The justfile `mutate` recipe (also used by CI) holds the fixed tag
   (`@v0.2.1`); upgrading is a deliberate change to both. The tool is young and its behaviour may change.
 - **Fallback:** if the tool cannot analyse a file (for example, a very new Go
   language feature, or generics it does not parse), do the manual check
@@ -613,7 +613,7 @@ internal/archtest/                             # guardrails (§9)
 
 ## Read receipt
 
-RULE-TAG: `testing-22586a08ab53`
+RULE-TAG: `testing-1525ed0d301e`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

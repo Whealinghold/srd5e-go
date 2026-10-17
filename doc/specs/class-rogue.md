@@ -570,7 +570,7 @@ apply (no ports). Withdrawn ids (4.11) have no tests here.
   and the DC and remaining dice match; a 3 Fighter / 2 Rogue multiclass gains
   only the FR-016 traits. They use a test-built Rogue entry, not bundled data.
 - **Mutation testing:** every changed line in `character/` for
-  the Rogue types MUST be mutation tested (`make mutate PKG=./character`, score at least
+  the Rogue types MUST be mutation tested (`just mutate ./character`, score at least
   80, `doc/rules/testing.md` §8). The boundary cases (levels 4/5, 5/6, 8/9,
   10/11, 13/14, 16/17, 17/18; rolls 9/10; distances 5/10; DC equality) kill
   `<` to `<=` mutants.

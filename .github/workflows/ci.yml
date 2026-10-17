@@ -19,6 +19,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
+      - uses: extractions/setup-just@v3
       - name: gofmt
         run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
       - run: go vet ./...
@@ -28,7 +29,7 @@ jobs:
           version: v2.15.0
       - run: set -o pipefail; go test -race -shuffle=on -cover -coverprofile=coverage.txt ./... | tee cover.log
       - name: coverage threshold (per-package floor)
-        run: make cover-check COVERLOG=cover.log
+        run: just cover-check cover.log
       - uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ matrix.go }}
@@ -43,7 +44,8 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
-      - run: make fuzz-smoke FUZZTIME=10s
+      - uses: extractions/setup-just@v3
+      - run: just fuzz-smoke 10s
 
   mutation:
     # See doc/rules/testing.md section 8: Docker only, CPUs and workers capped at 1/4 of nproc.
@@ -51,5 +53,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: extractions/setup-just@v3
       - name: gomu (in Docker, capped)
-        run: make mutate
+        run: just mutate

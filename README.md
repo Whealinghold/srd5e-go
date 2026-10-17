@@ -141,7 +141,7 @@ srd5e keeps four kinds of "it did not go to plan" apart (see [doc/specs/errors-a
 ## Development
 
 ```sh
-make check   # gofmt, go vet, golangci-lint, tests with -race -shuffle=on -cover, per-package coverage floor, fuzz smoke, go mod tidy, architecture tests
+just check   # gofmt, go vet, golangci-lint, tests with -race -shuffle=on -cover, per-package coverage floor, fuzz smoke, go mod tidy, architecture tests
 ```
 
 CI pins golangci-lint at v2.15.0 (`.github/workflows/ci.yml`); use the same version locally.

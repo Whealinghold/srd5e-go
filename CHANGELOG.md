@@ -12,6 +12,7 @@ rules and the specs; the API follows Go conventions instead of Dart ones.
 
 ### Changed
 
+- Internal: the task runner is now `just` (`justfile`) instead of `make`; `make fuzz-smoke FUZZTIME=10s` becomes `just fuzz-smoke 10s`, `make mutate PKG=./x` becomes `just mutate ./x`. CI installs `just` with `extractions/setup-just`.
 - Compatibility promise (`doc/rules/go.md` section 9): exported-field structs
   must be built with keyed literals and new fields can break comparability;
   tightening a `*test` contract suite is a minor-version change listed under

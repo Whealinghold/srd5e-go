@@ -72,7 +72,7 @@ Process contract for every step (from `AGENTS.md` and the rule files):
 - Every test cites its requirement: a `Requirement:` doc comment naming the spec
   path and FR id (`Requirement: per case` on table rows), or an SRD rule
   citation ([../rules/testing.md](../rules/testing.md) §5).
-- `make check` is green before review: gofmt, `go vet`, golangci-lint,
+- `just check` is green before review: gofmt, `go vet`, golangci-lint,
   `go test -race -shuffle=on -cover ./...`, `go mod tidy`, architecture tests.
 - Statement coverage of the package is at least 90 percent; uncovered lines
   have a stated reason ([../rules/testing.md](../rules/testing.md)).
@@ -123,16 +123,16 @@ on its own `Roller` interface, not on `dice` adapters), `example_test.go`.
 ## 8. Verification commands
 
 ```sh
-make check
+just check
 go test -race -shuffle=on -coverprofile=coverage.txt ./d20/... && go tool cover -func=coverage.txt | tail -n 1
 ```
 
-Mutation testing (never on the host; the Makefile target runs gomu inside Docker
+Mutation testing (never on the host; the justfile recipe runs gomu inside Docker
 with `--cpus` and `--workers` capped at a quarter of the processors and the
 threshold flags, see [../rules/testing.md](../rules/testing.md) §8):
 
 ```sh
-make mutate PKG=./d20
+just mutate ./d20
 ```
 
 ## 9. Risks and mitigations
