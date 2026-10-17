@@ -1,0 +1,54 @@
+version: "2"
+run:
+  go: "1.24"
+  tests: true
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - revive
+    - errorlint
+    - exhaustive
+    - gocritic
+    - nilnil
+    - unparam
+    - misspell
+    - godot
+    - gosec
+    - unused
+    - ineffassign
+    - thelper
+    - tparallel
+    - errname
+    - unconvert
+    - copyloopvar
+    - nolintlint
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: false
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: var-naming
+        - name: error-naming
+        - name: error-strings
+        - name: receiver-naming
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+    rules:
+      - path: _test\.go
+        linters: [gosec, unparam, errcheck, gocritic]
+      - path: ^internal/archtest/
+        linters: [gosec]
+formatters:
+  enable:
+    - gofmt
+    - goimports

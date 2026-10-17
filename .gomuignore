@@ -1,0 +1,7 @@
+# Excluded from mutation testing (doc/rules/testing.md section 8).
+# Test-support packages, architecture tests and examples.
+dice/dicetest/
+telemetry/telemetrytest/
+internal/archtest/
+scenarios/
+examples/

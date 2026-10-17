@@ -1,0 +1,566 @@
+# Equipment content (bulk)
+
+| | |
+|---|---|
+| Status | draft |
+| Context | `content` |
+| Roadmap phase | Types 2; bulk data 5 |
+| Depends on | `content-schema-and-decoder.md`, `content-source-port.md` |
+
+Dependencies in use: the decoder spec (envelope, id pattern, `Decoder`, the joined `Problem` error, `DamageType` FR-107, `WeaponProperty` and `MasteryProperty` FR-113, `ItemID` FR-114 and FR-128, embedding rule FR-120 to FR-124, revision table, cross-reference validation); the port spec (`Entry`, `Key`, `ContentFound`, `ContentNotFound`, `BundledSource` FR-059 to FR-061); `dice.Expression` (weapon damage); `ability.Ability` (the `ability` field of tools). A content data spec depends on no other data spec (shared-types-and-ownership.md FR-047); the kernel types it uses, dice-and-rolls.md (`dice.Expression`) and ability-scores.md (`ability.Ability`), are not header dependencies (guardrails FR-099): they are reached through the decoder spec and are cited in the body only. The spec is silent and produces no `PortError` (sections 5, 7), so it uses nothing from errors-and-results.md or observability-ports.md beyond `srderr.ErrInvalidInput`.
+
+Referred to, not depended on (no type imported): `equipment-rules.md` (the rule maths moved there; it depends on this spec), `weapon-properties-and-mastery.md` (property behaviour), `release-0-1-0.md` (module archive layout), `content-licensing-and-notice.md` (FR-027, FR-029), `architecture-guardrails.md` (FR-076, FR-077, FR-078 layout check, FR-079 `NOTICE.md` paths), `content-spells.md` (spell levels are plain integers here, FR-118, Q21) and `content-magic-items.md` (FR-095, Q19). Other data specs refer to an equipment entry only by `ItemID`, checked by the decoder's whole-set validation.
+
+## 1. Purpose and scope
+
+Bulk transcription of the SRD 5.2.1 "Equipment" chapter into bundled content: every entry of every equipment table, the extra schema fields it needs (rows of the revision table in content-schema-and-decoder.md, shared-types-and-ownership.md FR-034), and the extraction and verification process that makes a transcription of 258 entries trustworthy. The rule maths of earlier drafts (Armor Class, barding, drawn loads, ship repair, crafting, scroll scribing, spellcasting fees) is moved to `equipment-rules.md` (Q18); this spec keeps the data it reads.
+
+| Category | Entries | Printed pages |
+|---|---|---|
+| Weapons | 38 | 89-91 (table p. 91) |
+| Armor (12 armor, 1 Shield) | 13 | 92 |
+| Tools (17 Artisan's Tools, 8 Other Tools, 14 variants) | 39 | 93-94 |
+| Adventuring Gear (82 table rows, 16 variants, 1 Spell Scroll family) | 99 | 94-100 (table p. 95) |
+| Mounts and Other Animals | 8 | 100 |
+| Tack, Harness, and Drawn Vehicles | 10 | 100 |
+| Airborne and Waterborne Vehicles | 7 | 100-101 (table p. 101) |
+| Lifestyle Expenses | 7 | 101 |
+| Food, Drink, and Lodging | 17 | 101-102 |
+| Hirelings | 3 | 102 |
+| Spellcasting Services | 7 | 102 |
+| Spell Scroll Costs | 10 | 103 |
+| **Total** | **258** | |
+
+The 82 table rows include the four family rows and the two scroll rows Spell Scroll (Cantrip) and Spell Scroll (Level 1), which are variants of the Spell Scroll family and are counted in the 82, not in the 16 sub-table variants. The family has no table row; it is the heading "Spell Scroll (Cantrip, 30 GP; Level 1, 50 GP)" on p. 99: 82 + 16 + 1 = 99. It prints no single price and no weight (FR-081). Coins (p. 89) are five fixed denominations: an enum in code, not entries.
+
+**Out of scope:**
+
+- **Magic items.** The "Magic Items" rules (pp. 102-103) and the catalogue (pp. 204-253) belong to magic item content. Four gear entries (Potion of Healing, the three Spell Scroll entries) are magic items by their own text; they are bundled here only as the priced rows of the Adventuring Gear table, text verbatim (FR-095).
+- **Rule maths on equipment** (Armor Class, Strength speed penalty, barding, drawn loads, ship repair, crafting, scribing, spellcasting fees and availability): `equipment-rules.md` (Q18; shared-types-and-ownership.md FR-006). This spec supplies data and static SRD facts only.
+- **Machine-readable mechanics of gear** (Acid damage, Net escape DC, Caltrops, Oil, Potion of Healing healing): verbatim SRD text, as the decoder spec's Q8 does for other kinds. Only the facts the tables print as columns are structured.
+- **Behaviour of weapon and mastery properties** (Finesse, Graze, Topple, ...), Weapon Proficiency and Armor Training: `combat` and `character`. **Tool Proficiency** and the crafting and scribing prerequisite checks: `tool-proficiency-and-crafting.md` (it reads the tool data of FR-029, FR-108 and the Utilize DCs of FR-119). The tables' names and numbers are supplied here.
+- **Monster stat blocks of mounts** (p. 100): monster content. **Barding's Armor Class and which mount may wear it**: the SRD gives only a cost and weight multiplier (p. 100).
+- **Selling Equipment** (p. 89, "half its cost"): no rounding for an odd copper count and no table of the "trade goods and valuables" that keep full value (Q5). **Assisted crafting time** (p. 103), **passenger capacity with private accommodations** (p. 101) and **weekly or monthly Lifestyle Expenses**: the SRD gives no rounding or month length (Q6).
+- **The Spellbook item.** The Equipment chapter (pp. 89-103) has no Spellbook entry; it appears only in the Wizard text ("a Tiny object that weighs 3 pounds, contains 100 pages", p. 78; starting equipment, p. 77). Not bundled here (PR-3).
+- **Not in the PDF.** Nothing else that looked like core fifth-edition equipment was found missing while reading pp. 89-103 against the contents page, with two recorded gaps. (1) "Selling Equipment" names "trade goods and valuables—like gems and art objects" but SRD 5.2.1 has no price table for either (whole PDF text searched). (2) No Spellbook entry (re-checked against pp. 77-103: the word occurs only in Wizard text, pp. 77-78). `class-wizard.md` FR-009 keeps the name as a `{name, quantity}` line of the Wizard's starting equipment, with no `ItemID`; the item's size, weight and page count are modelled by no spec. This spec asks class-wizard.md to drop its scope line assigning "Spellbook (as an item, including its size, weight and page count)" to this spec and its FR-040 wording that calls those facts "owned by content-equipment.md" (counterpart edit is that spec's).
+
+## 2. Source
+
+Printed page equals PDF page (the footer of PDF page 91 prints "91"; 364 pages): there is no offset.
+
+- SRD 5.2.1, "Coins" and "Coin Values", p. 89; "Weapons", "Weapon Proficiency", "Properties", p. 89; "Properties" (continued) and "Mastery Properties", p. 90; the Weapons table, p. 91.
+- SRD 5.2.1, "Armor", "Armor Training", and the Armor table, p. 92.
+- SRD 5.2.1, "Tools", "Tool Proficiency", "Artisan's Tools", pp. 93-94; "Other Tools", p. 94.
+- SRD 5.2.1, "Adventuring Gear" and its table, pp. 94-95; Ammunition, Arcane Focuses, item descriptions, pp. 94-100; Holy Symbols and Druidic Focuses tables, p. 97.
+- SRD 5.2.1, "Mounts and Vehicles", "Mounts and Cargo", "Barding", "Saddles", the Mounts and Other Animals and Tack, Harness, and Drawn Vehicles tables, "Large Vehicles" (Speed), p. 100.
+- SRD 5.2.1, the Airborne and Waterborne Vehicles table, "Crew", "Passengers", "Damage Threshold", "Ship Repair", p. 101.
+- SRD 5.2.1, "Lifestyle Expenses", p. 101; "Food, Drink, and Lodging", pp. 101-102; "Hirelings" and "Spellcasting Services", p. 102.
+- SRD 5.2.1, "Crafting Nonmagical Items", "Brewing Potions of Healing", "Scribing Spell Scrolls", the Spell Scroll Costs table, p. 103; "Selling Equipment", p. 89 (read, not implemented).
+- SRD 5.2.1, "Damage Types", p. 180 (thirteen types). `DamageType` is owned by `content` (shared-types-and-ownership.md FR-005; Q9); this spec only uses it. Psychic occurs only in equipment text (the Net, p. 98: "Immunity to Bludgeoning, Poison, and Psychic damage"), which stays verbatim.
+
+Package-design rules: `doc/rules/architecture.md` (§2, §3, §5, §6), `doc/rules/observability.md` (§2, §3, §7), `doc/rules/testing.md` (§3 to §5, §8), `AGENTS.md` ("Licensing and source material").
+
+## 3. Vocabulary
+
+| SRD term | Type | Notes |
+|---|---|---|
+| Coins (CP, SP, EP, GP, PP) | `Coin` | Enum, p. 89; ratios FR-009; defined FR-098. |
+| Cost | `Cost` | `amount`, `Coin`, optional `CostRate` (`day`, `mile`); FR-098; not `Comparable` (FR-011). |
+| Price (Cost or "Varies") | `Price` (closed: `FixedCost(Cost)`, `CostVaries`) | Replaces a nullable cost plus flag (architecture.md §3); wire form FR-013. |
+| Weight (number, "Varies", "—") | `WeightSpec` (closed: `Weight(pounds, note?)`, `WeightVaries`, `NoWeight`) | `Weapon` and `Armor` never use `WeightVaries`; `note` is the parenthetical such as "full" (FR-035). |
+| Entry identifier | `ItemID` | Defined by content-schema-and-decoder.md (FR-114, FR-128); `ItemID.key` is `Key(KindEquipment, id)`; snake_case, at most 64 characters (FR-003). No `EquipmentId` (Q15); FR-107. |
+| Damage Types; properties; mastery | `DamageType`, `WeaponProperty`, `MasteryProperty` | Owned by content-schema-and-decoder.md (FR-107, FR-113); used here. Behaviour: weapon-properties-and-mastery.md. |
+| Spell Level | `int` 0 to 9 | Plain integer here (FR-118, Q21). |
+| Weapon | `Weapon`, `WeaponCategory`, `WeaponType`, `WeaponDamage`, `WeaponPropertyUse` | FR-101 to FR-103, FR-106. |
+| Armor, AC, Strength, Stealth | `Armor`, `ArmorCategory`, `ArmorClassRule` (`BaseRule`, `BonusRule`) | FR-104, FR-105, FR-093. A Shield is an `Armor` of category Shield with a `BonusRule`. |
+| Don or Doff | `DonDoffTime` (`DonDoffMinutes(minutes)`, `DonDoffByUtilize`) | Light 1/1 Minutes, Medium 5/1, Heavy 10/5, Shield "Utilize Action" (p. 92); constants in `ArmorCategory` (D2). |
+| Tool; Artisan's Tools, Other Tools | `Tool` (closed: `StandaloneTool`, `ToolFamily`, `ToolVariant`), `ToolGroup`, `ToolUtilizeAction(description, dc)` | A variant takes Ability and Utilize from its family (FR-029). Gaming Set and Musical Instrument are `ToolFamily`s (price "Varies"; weight "—" and "Varies"), p. 94. |
+| Craft | `CraftReference` (closed: `CraftItem(ItemID)`, `CraftSet(CraftSetName, except)`) | `CraftSetName`: `meleeWeapons`, `rangedWeapons`, `mediumArmor`, `heavyArmor`. |
+| Adventuring Gear | `AdventuringGear` (closed; FR-039) | `PlainGear`, `MagicGear`, `GearFamily`, `ScrollFamily`, `AmmunitionVariant`, `FocusVariant`, `ScrollVariant`, `Pack`. |
+| Ammunition; Packs | `AmmunitionData`; `Pack` with `PackItem(id, quantity, unit?)` | Arrows, Bolts, Bullets (Firearm), Bullets (Sling), Needles with amount and storage (p. 96); seven packs (pp. 96-99). |
+| Arcane Focus, Druidic Focus, Holy Symbol, Spell Scroll | `GearFamily` / `ScrollFamily` with `FocusVariant` / `ScrollVariant` | pp. 96-97, 99; both scroll rows carry their spell level (0 and 1). |
+| Crafting override | `CraftingOverride(rawMaterials, days, toolIds)` | Data on `MagicGear` (FR-094, FR-108). |
+| Mounts; Tack and Drawn Vehicles; Airborne and Waterborne Vehicles | `Mount`, `TackHarnessOrDrawnVehicle`, `AirborneOrWaterborneVehicle` | p. 100-101. |
+| Lifestyle Expenses; Food, Drink, and Lodging; Hirelings | `LifestyleExpense`, `FoodDrinkOrLodging`, `Hireling` | pp. 101-102. |
+| Spellcasting Services; Availability; settlement | `SpellcastingService`, `Availability` (`villageTownOrCity`, `townOrCityOnly`, `cityOnly`), `SettlementSize` (`village`, `town`, `city`) | Row data only (p. 102); lookup and availability checks in equipment-rules.md. |
+| Spell Scroll Costs | `SpellScrollCost` | `spellLevel`, `days`, `cost` (p. 103); lookup in equipment-rules.md. |
+| Barding; Crafting; Ship Repair; Mounts and Cargo | rules | Computed in equipment-rules.md from this spec's data (pp. 100, 101, 103). |
+| (package) equipment entry, category | `EquipmentEntry` (closed, `Entry`), `EquipmentCategory` | Twelve entry types; twelve table families (FR-002). |
+| (package) family, variant, golden | | A row whose price or weight "Varies" (or the Spell Scroll family) and the rows of its sub-table; a golden is an independent second transcription used as a fixture (FR-072). |
+
+Terms use SRD 5.2.1 wording exactly (`doc/rules/architecture.md` §3).
+
+## 4. Requirements
+
+A "problem" is one `Problem` of the decoder (content-schema-and-decoder.md FR-015); "reject" means the joined `Problem` error containing it. Kinds follow the decoder convention: missing required field `missingField`; wrong JSON type `wrongType`; integer or length outside bounds `outOfRange`; string outside a closed set or blank `invalidValue`; id naming no entry `unresolvedReference` (a set name: `invalidValue`); repeated id `duplicate`; forbidden field combination `constraintViolation`; undeclared key `unknownField`. Paths are JSON Pointers with array indexes (`/tools/3/utilize/0/dc`). Every decoder FR gives path and kind, so each unhappy-path test asserts the whole `Problem` (testing.md §4). JSON names are those of section 5.
+
+Test levels (section 8) follow testing.md §3: `unit` (domain only, no decoder, no bundled data), `contract (adapter tests)` (the decoder, or the bundled data read through it; a "data test"), `architecture`, `scenario`; process requirements have no automated level.
+
+### Identity and shape
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-001 | Every decoded equipment entry MUST implement `Entry` with key kind `equipment` and the entry's `id`, so `Source.lookup` and `ListKind(equipment)` serve all twelve categories as one kind. | content-source-port.md; content-schema-and-decoder.md | happy |
+| FR-002 | `EquipmentCategory` MUST have exactly twelve values, named for the SRD tables: weapon, armor, tool, adventuringGear, mount, tackHarnessOrDrawnVehicle, airborneOrWaterborneVehicle, lifestyleExpense, foodDrinkOrLodging, hireling, spellcastingService, spellScrollCost. A `switch` over it MUST be exhaustive. | SRD 5.2.1, "Equipment", pp. 89-103 | happy |
+| FR-003 | An `id` in the bundled data MUST be the printed name (prefixed by its group or family where FR-082 says so), lower-cased, apostrophes (`'` and U+2019) removed and every other run of non-alphanumerics replaced by one underscore, no leading or trailing underscore, at most 64 characters (decoder FR-030; a 65-character id in a document is `invalidValue` at `/…/id`). The slug function lives in `tools/` (shared with the extraction tool) and is tested only in `tools/id_slug_test.go` (case table "id derivation"); nothing in the root module or the unit and data tests imports it (FR-070). The golden carries each entry's expected `id` string, so the data test compares id strings and checks the 64-character limit. A name whose id is empty or over 64 characters is reported by the tool and left out of the draft (FR-071). | content-schema-and-decoder.md (id pattern, FR-030); SRD 5.2.1 table names | happy |
+| FR-004 | Ids MUST be unique across all twelve categories (one kind): a second entry with an id already used in `equipment`, including across arrays (a `tools` id equal to a `weapons` id), is `duplicate` at its `id`. | content-schema-and-decoder.md; testing.md §4 | unhappy (invalid input) |
+| FR-005 | An entry's `name` MUST be exactly as printed in its table or heading, including inverted comma forms (`Bottle, Glass`, `Horse, Draft`), typographic apostrophes and capitalisation. Grouped and sub-table rows take the names of FR-082, which also fixes the printed labels that are not the name (the Spell Scroll heading, the Holy Symbols parentheticals, the Wretched "(Free)"). | SRD 5.2.1, "Adventuring Gear", p. 95; "Mounts and Other Animals", p. 100 | happy |
+| FR-006 | Every bundled equipment entry MUST have `source` with `document` `SRD 5.2.1`, a non-blank `section` and an integer `page`; a missing or blank part is found by the data test. Page range and value: FR-075. | AGENTS.md; content-schema-and-decoder.md | unhappy (invalid input) |
+| FR-007 | Decoded entries, their lists (properties, utilize actions, craft references, variants, contents) and the `Set` MUST be immutable: every accessor returns a copy, so mutating a returned slice leaves the value unchanged and the next read is unchanged. | architecture.md §3, §4 | unhappy (immutability) |
+| FR-008 | The revision table of content-schema-and-decoder.md MUST carry the row R2-equipment of section 5: exactly these optional root arrays after the existing ones: `tools`, `adventuringGear`, `mounts`, `tackHarnessAndDrawnVehicles`, `airborneAndWaterborneVehicles`, `lifestyleExpenses`, `foodDrinkAndLodging`, `hirelings`, `spellcastingServices`, `spellScrollCosts`. This spec claims no version number (shared-types-and-ownership.md FR-034). Once applied, an absent array means no entries and any other root key is `unknownField`. The decoder's root order (decoder FR-016) is `schemaVersion`, `species`, `backgrounds`, `classes`, `feats`, `spells`, `weapons`, `armor`, then the ten arrays in the order above (other specs' rows may add arrays; this spec fixes only its own relative order); the duplicate-id group order for `equipment` is the same array order. | content-schema-and-decoder.md (FR-008, FR-016); shared-types-and-ownership.md FR-034, FR-035 | unhappy (boundary) |
+
+### Cost, weight and Coins
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-009 | `Coin` MUST have exactly CP, SP, EP, GP, PP, worth 1, 10, 50, 100 and 1,000 Copper Pieces (1/100, 1/10, 1/2, 1 and 10 Gold Pieces). | SRD 5.2.1, "Coins", Coin Values table, p. 89 | happy |
+| FR-010 | `Cost.valueInCopper` MUST equal `amount` times the Coin's Copper value, integers only, for every Coin and amounts 0 to 100,000. | SRD 5.2.1, "Coins", p. 89 | unhappy (boundary) |
+| FR-011 | Two `Cost`s are equal iff `amount`, `coin` and rate are equal (5 SP is not 50 CP, so the printed form round-trips). `Cost` MUST NOT implement `Comparable`. `Cost.CompareCost(a, b)` MUST order by `valueInCopper` (5 SP and 50 CP give 0) and return an error wrapping `srderr.ErrInvalidInput` when the rates differ (5 SP per Day against 5 SP). | architecture.md §3 | unhappy (rule interaction) |
+| FR-012 | A `cost` object MAY have `per` of `Day` or `Mile`; absent means per item; any other value is `invalidValue` at `/…/cost/per`. Rates occur on Lifestyle Expenses, Inn Stay per Day (all six rows, FR-055), Feed per day, Stabling per day, Skilled and Untrained hirelings (Day) and Messenger (Mile). | SRD 5.2.1, "Lifestyle Expenses", p. 101; "Hirelings", p. 102 | unhappy (invalid input) |
+| FR-013 | The domain MUST hold a printed price as `Price` and a printed weight as `WeightSpec`; no entry type has a nullable cost or weight standing for a state, and no boolean flag in the domain. On the wire, a price printed "Varies" uses `costVaries: true` instead of `cost` (`CostVaries`); a weight printed "Varies" uses `weightVaries: true` instead of `weightPounds` (`WeightVaries`); a weight printed "—" has neither (`NoWeight`). A value together with its `Varies` flag is `constraintViolation` at the flag; a missing `cost` without `costVaries` is `missingField` at `/…/cost`; `costVaries: false` is `invalidValue`. The Spell Scroll family: FR-081. | SRD 5.2.1, Adventuring Gear table, p. 95; "Gaming Set", p. 94 | unhappy (rule interaction) |
+| FR-014 | Only `ToolFamily`, `GearFamily` and `ScrollFamily` declare `price` as `Price`; every other entry type (`PlainGear`, `MagicGear`, `AmmunitionVariant`, `FocusVariant`, `ScrollVariant`, `Pack`, `ToolVariant`, `StandaloneTool`, `Weapon`, `Armor` and every non-gear, non-tool type) declares `FixedCost`, so the type forbids `CostVaries` elsewhere. On the wire, `costVaries` on an entry that does not decode to a family is `constraintViolation` at `/…/costVaries`. | SRD 5.2.1, Adventuring Gear table, p. 95 | unhappy (rule interaction) |
+| FR-015 | Every bundled `weightPounds` MUST be a multiple of 0.25 (the SRD prints whole pounds, 1/4, 1/2, 1½ and 58½). A data test, not a decoder rule. | SRD 5.2.1, Weapons table, p. 91; Adventuring Gear table, p. 95 | unhappy (invalid input) |
+
+### Weapons
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-016 | The bundled weapons MUST be exactly 38: Simple Melee 10, Simple Ranged 4, Martial Melee 18, Martial Ranged 6. | SRD 5.2.1, Weapons table, p. 91 | happy |
+| FR-017 | Each bundled weapon MUST equal the golden transcription field for field: category, weaponType, damage, damageType, properties (ranges, ammunition type, Versatile damage, condition), mastery, weight, cost. | SRD 5.2.1, Weapons table, p. 91 | happy |
+| FR-018 | The anchor rows of the case table "Weapons: unusual rows" MUST decode exactly as printed. | SRD 5.2.1, Weapons table, p. 91 | unhappy (boundary) |
+| FR-019 | A weapon's `weaponType` MUST follow its table group, not its properties: Dagger, Handaxe, Javelin, Light Hammer, Spear and Trident (Thrown) are Melee; Dart (Thrown) is Ranged. | SRD 5.2.1, Weapons table, p. 91; "Thrown", p. 90 | unhappy (rule interaction) |
+| FR-020 | Every bundled weapon MUST have exactly one mastery, and all eight `MasteryProperty` values (Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex) MUST occur across the 38. | SRD 5.2.1, "Mastery Properties", p. 90; Weapons table, p. 91 | happy |
+
+### Armor
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-021 | The bundled armor MUST be exactly 13: Light 3 (Padded, Leather, Studded Leather), Medium 5 (Hide, Chain Shirt, Scale Mail, Breastplate, Half Plate), Heavy 4 (Ring Mail, Chain Mail, Splint, Plate), Shield 1, each matching the golden (Armor Class rule, Strength, Stealth, weight, cost). | SRD 5.2.1, Armor table, p. 92 | happy |
+| FR-022 | `ArmorCategory` MUST give donning and doffing times Light 1 Minute and 1 Minute, Medium 5 Minutes and 1 Minute, Heavy 10 Minutes and 5 Minutes, Shield "Utilize action to don or doff", as typed values, never strings. | SRD 5.2.1, Armor table headings, p. 92 | happy |
+| FR-024 | A Shield's rule MUST be a `BonusRule` of +2 and every other armor's a `BaseRule`. `ArmorClassRule` is closed with exactly those two (FR-093), so a `switch` is exhaustive and a Shield cannot be mistaken for body armor. Evaluation is equipment-rules.md. | SRD 5.2.1, Armor table and "Shield", p. 92 | unhappy (rule interaction) |
+| FR-026 | `stealthDisadvantage` MUST be true for exactly Padded Armor, Scale Mail, Half Plate Armor, Ring Mail, Chain Mail, Splint Armor and Plate Armor, and false for every other armor. | SRD 5.2.1, Armor table, p. 92 | unhappy (rule interaction) |
+
+### Tools
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-027 | The bundled tools MUST be exactly 39: 17 Artisan's Tools, 8 Other Tools, 14 variants (4 Gaming Set, 10 Musical Instrument). | SRD 5.2.1, "Artisan's Tools", "Other Tools", pp. 93-94 | happy |
+| FR-028 | Each bundled tool MUST equal the golden: group, Ability, Weight, Cost, Utilize actions (description and DC), Craft list. | SRD 5.2.1, "Tools", pp. 93-94 | happy |
+| FR-029 | A `StandaloneTool` and a `ToolFamily` MUST have `ability` (missing `missingField`; not one of the six abilities `invalidValue`, at `/tools/<i>/ability`) and `utilize`, a non-empty array (missing `missingField`; empty `outOfRange`, decoder FR-024, at `/tools/<i>/utilize`), each element with a non-blank `description` (`invalidValue` at `…/utilize/<j>/description`) and an integer `dc` of at least 1 (`outOfRange` at `…/dc`; non-integer `wrongType`). A `ToolVariant` is **exempt**: it takes Ability and Utilize from its family (read via `variantOf`) and declares none of `ability`, `utilize`, `craft`; any of the three on a variant is `constraintViolation` at that field. | SRD 5.2.1, "Tools", Ability, Utilize, "Variants", pp. 93-94 | unhappy (invalid input) |
+| FR-030 | Gaming Set and Musical Instrument MUST be `ToolFamily` entries: price `CostVaries`, `variants` listing the 4 and 10 variants, each variant with `variantOf` naming its family and a `cost` (missing `missingField` at `/tools/<i>/cost`; `costVaries` on it `constraintViolation`, FR-014). Reference problems: `variantOf` naming no entry `unresolvedReference` at `/tools/<i>/variantOf`; `variantOf` naming a non-`ToolFamily`, a variant listed by two families (reported at the later family's `variants/<j>`), or an entry with both `variants` and `variantOf`: `constraintViolation` at the offending path; a `variants` element naming no entry `unresolvedReference` at `/tools/<i>/variants/<j>`, and one naming a tool whose `variantOf` is another family `constraintViolation` there. | SRD 5.2.1, "Gaming Set", "Musical Instrument", p. 94 | unhappy (missing content) |
+| FR-031 | A Craft list MUST be an array of `{"kind": "item", "id"}` or `{"kind": "set", "set", "except"}`. A `kind` other than the two: `invalidValue` at `/tools/<i>/craft/<j>/kind`; a `set` outside `MeleeWeapons`, `RangedWeapons`, `MediumArmor`, `HeavyArmor`: `invalidValue` at `…/set`; an item `id` naming no entry: `unresolvedReference` at `…/id`; an `except` element naming no entry: `unresolvedReference` at `…/except/<k>`; `except` on an `item`: `unknownField` at `…/except`; a missing `id` or `set`: `missingField`. | SRD 5.2.1, "Artisan's Tools", Craft, pp. 93-94 | unhappy (missing content) |
+| FR-033 | Forgery Kit, Gaming Set, Musical Instrument, Navigator's Tools and Thieves' Tools MUST have an empty Craft list, and every other `StandaloneTool` (the Artisan's Tools included) a non-empty one; a `ToolVariant` has none. | SRD 5.2.1, "Tools", pp. 93-94 | unhappy (empty case) |
+
+### Adventuring Gear
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-034 | The bundled gear MUST be exactly 99 entries: the 82 table rows (including the four family rows Ammunition, Arcane Focus, Druidic Focus, Holy Symbol and the two `ScrollVariant` rows), 16 sub-table variants (5 `AmmunitionVariant`; 5 Arcane Focus, 3 Druidic Focus, 3 Holy Symbol `FocusVariant`), and the Spell Scroll `ScrollFamily` (82 + 16 + 1). | SRD 5.2.1, Adventuring Gear table, p. 95; pp. 96-97; "Spell Scroll", p. 99 | happy |
+| FR-035 | Each bundled gear entry MUST equal the golden row: name, weight, cost, "—" as no weight, "Varies" as the Varies flags, a parenthetical weight such as "5 lb. (full)" kept as `weightNote`; the anchor rows of "Gear: unusual rows" decode exactly. | SRD 5.2.1, Adventuring Gear table, p. 95 | happy |
+| FR-036 | The price in an item's description heading ("Acid (25 GP)") MUST equal the table price, and a Tool's heading price its Tool entry price; a mismatch is a transcription defect resolved against the PDF, never silently chosen. The Spell Scroll family is **exempt** (its heading prints two prices, FR-081); instead the two heading prices MUST equal the prices of its two `ScrollVariant` rows. | SRD 5.2.1, "Tools", "Adventuring Gear", pp. 93-100 | unhappy (rule interaction) |
+| FR-037 | Every non-variant gear entry MUST carry the SRD description as non-blank, verbatim `text` (a variant MAY omit it): missing is `missingField` at `/adventuringGear/<i>/text`, blank `invalidValue` there (decoder FR-028). | SRD 5.2.1, "Adventuring Gear", pp. 94-100 | unhappy (missing content) |
+| FR-038 | The text normaliser of the extraction tool (a pure function in `tools/`) MUST, one test row each in "Text normalisation": remove a hyphen that only marks a line break inside a word and join the halves; keep a hyphen that belongs to the compound; emit the left column of a page in full, then the right; turn line breaks inside a paragraph into single spaces; keep the typographic apostrophe. Proved on synthetic fixtures; committed `text` is checked against the golden (FR-072), not this function. | AGENTS.md ("keep it faithful"); content-schema-and-decoder.md | unhappy (invalid input) |
+| FR-039 | `AdventuringGear` MUST be closed with exactly `PlainGear`, `MagicGear`, `GearFamily`, `ScrollFamily`, `AmmunitionVariant`, `FocusVariant`, `ScrollVariant`, `Pack`; `GearVariant` is the closed supertype of the three variant types and declares no `variants`. Only `GearFamily` and `ScrollFamily` have `variants` (non-empty list of `GearVariant`); only variants have `variantOf` (one `ItemID`). On the wire `gearKind` selects the subtype (`plain`, `magic`, `family`, `scrollFamily`, `ammunitionVariant`, `focusVariant`, `scrollVariant`, `pack`; other: `invalidValue`; missing: `missingField` at `/adventuringGear/<i>/gearKind`) and a field the subtype lacks is `constraintViolation` at that field (`contents` on `plain`, `ammunition` on `focusVariant`, `variants` on a variant, `variantOf` on a family). A family with empty `variants`: `outOfRange` at `…/variants`; a `variants` element naming no gear entry: `unresolvedReference` at `…/variants/<j>`; one whose entry names another family in `variantOf`, or two families listing a variant: `constraintViolation` at the later `variants/<j>`; a `variantOf` naming no gear entry: `unresolvedReference` at `…/variantOf`, and one naming an entry that is not a family of its own kind (an `ammunitionVariant` of the Spell Scroll family): `constraintViolation` there. The constructor enforces the type rules; the decoder the wire rules. | SRD 5.2.1, Adventuring Gear table, p. 95; pp. 96-97 | unhappy (rule interaction) |
+| FR-040 | `alsoCountsAs` is a field of `FocusVariant` only and MUST resolve to a weapon: Arcane Focus (Staff) and Druidic Focus (Wooden staff) both name the Quarterstaff. No matching entry: `unresolvedReference` at `/adventuringGear/<i>/alsoCountsAs`; a non-weapon: `constraintViolation` there; on another subtype: `constraintViolation` (FR-039). | SRD 5.2.1, Arcane Focuses and Druidic Focuses tables, pp. 96-97 | unhappy (missing content) |
+| FR-041 | An `AmmunitionVariant` MUST carry `ammunition` (missing `missingField` at `…/ammunition`) with an integer `amount` of at least 1 (`outOfRange` at `…/ammunition/amount`; non-integer `wrongType`) and a non-blank `storage` exactly as printed (`invalidValue` at `…/storage`: Quiver, Case, Pouch), and MUST match the table rows: Arrows 20 Quiver 1 lb. 1 GP; Bolts 20 Case 1½ lb. 1 GP; Bullets, Firearm 10 Pouch 2 lb. 3 GP; Bullets, Sling 20 Pouch 1½ lb. 4 CP; Needles 50 Pouch 1 lb. 1 GP. | SRD 5.2.1, "Ammunition", p. 96 | happy |
+| FR-042 | A `Pack` MUST carry `contents`, a list of `{id, quantity}` with an optional verbatim `unit` ("flasks", "days"): missing `missingField` and empty `outOfRange` at `…/contents`; `quantity` below 1 `outOfRange` at `…/contents/<j>/quantity`; blank `unit` `invalidValue` at `…/unit`; an `id` naming no gear entry `unresolvedReference` at `…/contents/<j>/id`. Seven packs MUST have contents (Burglar's, Diplomat's, Dungeoneer's, Entertainer's, Explorer's, Priest's, Scholar's). | SRD 5.2.1, "Burglar's Pack" to "Scholar's Pack", pp. 96-99 | unhappy (missing content) |
+| FR-043 | For each of the seven packs, the sum of quantity times item weight over its contents MUST equal the printed pack weight (42, 39, 55, 58½, 55, 29 and 22 lb., in the order of FR-042). | SRD 5.2.1, Adventuring Gear table, p. 95; pp. 96-99 | unhappy (rule interaction) |
+| FR-044 | The sum of quantity times item cost over a pack's contents MUST equal the printed cost for exactly five packs; for two the printed cost wins: Diplomat's Pack (printed 39 GP, contents 40 GP) and Scholar's Pack (printed 40 GP, contents 40 GP 2 CP). Any other difference MUST fail the data test. | SRD 5.2.1, Adventuring Gear table, p. 95; pp. 96-99 | unhappy (rule interaction) |
+
+### Mounts, vehicles and cargo
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-046 | The bundled mounts MUST be exactly 8 (Camel, Elephant, Horse Draft, Horse Riding, Mastiff, Mule, Pony, Warhorse), each with an integer `carryingCapacityPounds` and a Cost matching the golden. | SRD 5.2.1, Mounts and Other Animals table, p. 100 | happy |
+| FR-047 | The bundled tack and drawn vehicles MUST be exactly 10 (Carriage, Cart, Chariot, Feed per day, Saddle Exotic, Saddle Military, Saddle Riding, Sled, Stabling per day, Wagon), matching the golden; the saddles are grouped rows (FR-082); Feed per day and Stabling per day MUST have `per: Day`; Stabling per day has no weight. | SRD 5.2.1, Tack, Harness, and Drawn Vehicles table, p. 100 | happy |
+| FR-048 | The bundled vehicles MUST be exactly 7 (Airship, Galley, Keelboat, Longship, Rowboat, Sailing Ship, Warship), matching the golden; Speed and Cargo (Tons) accept half steps (Rowboat 1½ mph, Keelboat ½ ton); a printed "—" (Galley Passengers, Rowboat Cargo, Airship Damage Threshold, Rowboat Damage Threshold) MUST be an absent field, not 0. | SRD 5.2.1, Airborne and Waterborne Vehicles table, p. 101 | unhappy (boundary) |
+| FR-049 | The Rowboat MUST carry `weightPounds` 100 ("A Rowboat can be carried and weighs 100 pounds") and no other vehicle a weight. | SRD 5.2.1, "Large Vehicles", Speed, p. 100 | unhappy (rule interaction) |
+
+### Services and expenses
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-054 | The bundled lifestyle expenses MUST be exactly 7 with these per-Day costs: Wretched `Cost(0, Coin.gp, per: CostRate.day)`, Squalid 1 SP, Poor 2 SP, Modest 1 GP, Comfortable 2 GP, Wealthy 4 GP, Aristocratic 10 GP, each with the SRD description as `text`. The SRD prints Wretched only as "Wretched (Free)" (the others "1 SP per Day" and so on); giving it Coin `gp` and rate `day` is a package-design decision so all seven share one shape (zero is the same in every Coin, FR-010, but the golden needs one reading). | SRD 5.2.1, "Lifestyle Expenses", p. 101 | happy |
+| FR-055 | The bundled Food, Drink, and Lodging entries MUST be exactly 17 matching the golden: Ale (mug) 4 CP, Bread (loaf) 2 CP, Cheese (wedge) 1 SP, Inn Stay per Day (Squalid 7 CP, Poor 1 SP, Modest 5 SP, Comfortable 8 SP, Wealthy 2 GP, Aristocratic 4 GP), Meal (Squalid 1 CP, Poor 2 CP, Modest 1 SP, Comfortable 2 SP, Wealthy 3 SP, Aristocratic 6 SP), Wine bottle (Common 2 SP, Fine 10 GP). The six Inn Stay rows MUST carry `per: Day`; no other row has a rate. Names: FR-082. | SRD 5.2.1, Food, Drink, and Lodging table, pp. 101-102 | happy |
+| FR-056 | The bundled hirelings MUST be exactly 3: Skilled hireling 2 GP per Day, Untrained hireling 2 SP per Day, Messenger 2 CP per Mile. | SRD 5.2.1, Hirelings table, p. 102 | happy |
+| FR-057 | The bundled spellcasting services MUST be exactly 7 rows with spell-level ranges 0, 1, 2, 3, 4-5, 6-8, 9 covering 0 to 9 exactly once (0 is the cantrip row). Each has integer `spellLevelMin` and `spellLevelMax`: outside 0 to 9 is `outOfRange` at that field (decoder FR-023); min greater than max is `constraintViolation` at `/spellcastingServices/<i>/spellLevelMax`; a gap or overlap between rows is `constraintViolation` at `/spellcastingServices` (checked only when the array is present and non-empty); an `availability` outside the three SRD spellings is `invalidValue` at `…/availability`. | SRD 5.2.1, Spellcasting Services table, p. 102 | unhappy (boundary) |
+
+### Crafting and scribing data
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-064 | The bundled spell scroll costs MUST be exactly 10 (spell levels 0 to 9) matching the Spell Scroll Costs table. Each row has `spellLevel` (integer 0 to 9, `outOfRange` at `/spellScrollCosts/<i>/spellLevel`), `days` (integer of at least 1, `outOfRange` at `…/days`) and `cost`; the rows cover 0 to 9 exactly once: a repeat is `duplicate` at the later `…/spellLevel`, a missing level `constraintViolation` at `/spellScrollCosts` (checked only when the array is present and non-empty). Lookup by level and the case table "Scroll scribing" are equipment-rules.md's; the data test checks the values against the golden. | SRD 5.2.1, "Scribing Spell Scrolls", Spell Scroll Costs table, p. 103 | happy |
+
+### Decoding, completeness and verification
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-066 | The bundled set MUST contain exactly 258 equipment entries (the sum of the counts of FR-016, FR-021, FR-027, FR-034, FR-046, FR-047, FR-048, FR-054, FR-055, FR-056, FR-057 and FR-064; the total lives only here), and `Source.ListKind(equipment)` MUST return them ordered by id. A missing or extra entry fails the data test. | SRD 5.2.1, "Equipment", pp. 89-103 | happy |
+| FR-067 | Every cross-reference in the data (`variants`, `variantOf`, `alsoCountsAs`, pack `contents`, Craft references, `except` lists) MUST resolve to an entry of the expected category in the same document (references never resolve across documents, decoder FR-035); otherwise `unresolvedReference` at its path (FR-030, FR-031, FR-039, FR-040, FR-042). An entry counts as present when its own `id` is valid, so one bad entry never invents a reference problem (decoder FR-095). | content-schema-and-decoder.md (FR-035, FR-095) | unhappy (missing content) |
+| FR-068 | A document with one fault in each of the ten new arrays MUST be rejected with every fault listed, ordered by the root order of FR-008 and, within an array, by index and field; the same text always gives an equal result. | architecture.md §5; testing.md §4; content-schema-and-decoder.md FR-016 | unhappy (invalid input) |
+| FR-069 | A document with any `schemaVersion` other than the current one MUST be rejected with exactly one problem, `/schemaVersion`, `unsupportedVersion` (decoder FR-006); this spec claims no number (shared-types-and-ownership.md FR-034) and the FR-008 row lands in that single version before 0.1.0. Every bundled file declares the current version. | content-schema-and-decoder.md (FR-006, FR-007); shared-types-and-ownership.md FR-034 | unhappy (state error) |
+| FR-070 | The extraction tool and the PDF check (FR-073) MUST live under `tools/` (its own module with its own `go.mod`), MUST NOT be imported by any package of the root module (or by a test other than their own tests in `tools/`, including the slug test of FR-003), MUST NOT add a dependency to the root `go.mod`, and MUST NOT be part of the published module's packages. They MUST write any draft outside `content/data/`. There is no generator (content-schema-and-decoder.md FR-120 to FR-124). `tools/` is inside the guardrail source set (architecture-guardrails.md FR-002), so the consumer-name scan (FR-026) covers it. | architecture.md §2, §5; shared-types-and-ownership.md FR-032; AGENTS.md; release-0-1-0.md FR-061 | unhappy (state error) |
+| FR-071 | The extraction tool MUST be deterministic (same PDF text, byte-identical output), MUST report every row it could not parse and any line-end hyphen it was unsure about, and MUST NOT guess: an unparsed row is reported and left out of the draft. Input: `pdftotext -layout` text of printed pages 89-103, one page per form-feed chunk (PR-2). Output is a drafting aid; the reviewed JSON in `content/data/` is the source of truth (FR-096). | content-schema-and-decoder.md Q1 (decided) | unhappy (missing content) |
+| FR-072 | Each equipment category MUST have a golden fixture, and the data test MUST fail on any difference between golden and bundled data (every field FR-017, FR-021, FR-028, FR-035, FR-046 to FR-048, FR-054 to FR-056 and FR-064 name, the Potion of Healing override (FR-094) and each entry's `source.page`). The golden lives under `content/testdata/srd/equipment/` (shared-types-and-ownership.md FR-033) and is exempt from testing.md §5 "Cite, do not copy" (Q8). That it was authored independently is PR-1. | testing.md §1, §8; AGENTS.md | happy |
+| FR-073 | `tools/check_equipment_pages` MUST take the text of printed pages 89-103 (as FR-071) and the bundled document, print one line `<id> <page> <reason>` for every entry failing its match rule, and exit non-zero iff the report is not empty. Match rules, on the text of `source.page` after joining line-end hyphens and collapsing whitespace (case-sensitive for entries, case-insensitive for variants in running text): (a) weapons, armor, mounts, vehicles, lifestyle expenses, hirelings, ungrouped tack and food rows, non-variant tools and gear: the printed `name` appears as a whole phrase; (b) grouped rows (FR-082): the group label appears on the page and the row label as a whole phrase after its first occurrence; (c) sub-table variants: as (b) with the family name as group label, matching the base label of FR-082 (`Amulet`, not "Amulet (worn or held)"); (d) tool variants: the name appears after the family's "Variants" label; (e) the Spell Scroll family: the heading "Spell Scroll (Cantrip, 30 GP; Level 1, 50 GP)" appears on its page. It proves presence, not value correctness (the golden does). Unit-tested on synthetic text (a missing name, a hyphen-split name, a grouped row with the group label absent, "Common" on a page without its group); running it on real text is PR-2. | SRD 5.2.1 (all pages cited); AGENTS.md | unhappy (missing content) |
+| FR-074 | No bundled entry MAY come from outside SRD 5.2.1: an entry FR-073 reports, or sourced from another book, SRD 5.1 or memory, MUST be removed, and anything that looks like core equipment but is absent from the PDF MUST be listed in the change summary. Enforced by the PDF check on real text and by review (PR-2, PR-3); the consumer-name scan is FR-088. | AGENTS.md, "Licensing and source material" | n/a (process) |
+| FR-075 | Every bundled `source.page` MUST lie inside the printed range of its category (section 1) and equal the golden's `page`. It is the page of the entry's table row (Adventuring Gear: p. 95 for the 82 table rows, pp. 96-97 for sub-table variants; item descriptions are not recorded); the Spell Scroll family records its heading page (p. 99) and a Tool the page of its entry. | SRD 5.2.1, pp. 89-103 | unhappy (boundary) |
+| FR-076 | The equipment files of package `content` (`equipment_*.go`) MUST NOT import `os`, `net`, `telemetry` or `srderr` (beyond `srderr.ErrInvalidInput` for validation errors), and MUST NOT reference a use-case type. | architecture.md §3, §9 | happy |
+| FR-077 | Exactly these public types MUST be exported from package `content` by this spec (doc comment on each, no re-export): entries `Weapon`, `Armor`, `Tool`, `StandaloneTool`, `ToolFamily`, `ToolVariant`, `AdventuringGear`, `PlainGear`, `MagicGear`, `GearFamily`, `ScrollFamily`, `GearVariant`, `AmmunitionVariant`, `FocusVariant`, `ScrollVariant`, `Pack`, `Mount`, `TackHarnessOrDrawnVehicle`, `AirborneOrWaterborneVehicle`, `LifestyleExpense`, `FoodDrinkOrLodging`, `Hireling`, `SpellcastingService`, `SpellScrollCost`, `EquipmentEntry`, `EquipmentCategory`; cost and weight `Coin`, `Cost`, `CostRate`, `Price`, `FixedCost`, `CostVaries`, `WeightSpec`, `Weight`, `WeightVaries`, `NoWeight`; weapons `WeaponCategory`, `WeaponType`, `WeaponDamage`, `WeaponDiceDamage`, `WeaponFixedDamage`, `WeaponPropertyUse`, `PlainUse`, `AmmunitionUse`, `ThrownUse`, `VersatileUse`, `TwoHandedUse`, `TwoHandedCondition`, `RangePair`, `AmmunitionType`; armor `ArmorCategory`, `DonDoffTime`, `DonDoffMinutes`, `DonDoffByUtilize`, `ArmorClassRule`, `BaseRule`, `BonusRule`, `DexterityBonus`, `FullDexterity`, `CappedDexterity`, `NoDexterity`; tools and gear data `ToolGroup`, `ToolUtilizeAction`, `CraftReference`, `CraftItem`, `CraftSet`, `CraftSetName`, `CraftingOverride`, `PackItem`, `AmmunitionData`; services `SettlementSize`, `Availability`. `ItemID` (decoder FR-114, FR-088) and `DamageType`, `WeaponProperty`, `MasteryProperty` (decoder FR-105, FR-088) are exported by the decoder spec. Exported names are unique across the package (shared-types-and-ownership.md FR-017, FR-021). | architecture.md §2, §5, §7 | happy |
+| FR-078 | `DamageType` MUST have one definition, in `content` (shared-types-and-ownership.md FR-005; owning requirement decoder FR-107); no enum with damage-type values is declared in equipment code or in `combat`. The same holds for `WeaponProperty` and `MasteryProperty` (decoder FR-113). | architecture.md §2; shared-types-and-ownership.md FR-005, FR-046 | happy |
+| FR-079 | The bundled equipment MUST be **one** JSON document, `content/data/equipment.json` (source of truth, FR-096), holding `weapons`, `armor` and the ten arrays, in which every cross-reference resolves (FR-067); there is no per-category file. `data.BundledSource` (content-source-port.md; package `content/data`, shared-types-and-ownership.md FR-031, FR-047), to which this spec adds only the embedded file, decodes the embedded bytes through the same `Decoder` as host JSON and MUST serve `ListKind(ctx, KindEquipment)` with 258 entries and `Lookup` of each as the found variant. The package reads no file at runtime (`go:embed` reads at build time). | content-schema-and-decoder.md (FR-035); shared-types-and-ownership.md FR-030, FR-031; content-licensing-and-notice.md FR-008 | happy |
+| FR-080 | Every entry (weapons and armor included) with a `cost` or `weightPounds` MUST satisfy: `cost` is `{amount, coin}` (plus optional `per`, FR-012); `amount` an integer of 0 or more (negative `outOfRange` at `/…/cost/amount`; non-integer `wrongType`); `coin` one of CP, SP, EP, GP, PP (else `invalidValue` at `/…/cost/coin`; missing `coin` or `amount` `missingField`); `weightPounds` a number of 0 or more (negative `outOfRange` at `/…/weightPounds`; non-number `wrongType`); a missing `cost` is `missingField` at `/…/cost` (except `CostVaries`, FR-013). Owned here (the decoder spec's former FR-068 moved to this spec). | SRD 5.2.1, "Coins", p. 89; Weapons table, p. 91; Armor table, p. 92 | unhappy (boundary) |
+| FR-081 | The Spell Scroll family (`ScrollFamily`) prints no single price and no weight (its heading gives two prices; its two table rows 30 GP and 50 GP with weight "—"): it MUST be `CostVaries`, `NoWeight`, with `variants` the two `ScrollVariant` rows; `ScrollVariant` MUST be `FixedCost` and `NoWeight` with `spellLevel` 0 and 1. The family is exempt from FR-036's price equality and from the "Varies" reading of FR-013 (Q17). | SRD 5.2.1, Adventuring Gear table, p. 95; "Spell Scroll", p. 99 | unhappy (rule interaction) |
+| FR-082 | A row under a group heading takes the name `<group label>, <row label>` as printed, and the id of FR-003: Saddle (Exotic, Military, Riding), Inn Stay per Day (Squalid ... Aristocratic), Meal, Wine (bottle) (Common, Fine), Spellcasting Services (Cantrip, 1, 2, 3, 4–5, 6–8, 9), Spell Scroll Costs (Cantrip, 1 ... 9). A sub-table variant takes its printed row label as `name` and the family id as id prefix (`arcane_focus_crystal`); a tool variant takes the name as printed in the family's Variants line ("Dice", "dragonchess", "playing cards", "three-dragon ante"). Lifestyle rows, hirelings and ungrouped rows keep the printed label (`squalid`; the "(Free)" of Wretched is its price, not part of the name). The Spell Scroll family has name `Spell Scroll`, id `spell_scroll` (the heading's prices are not part of the name; Calligrapher's Supplies lists "Spell Scroll", p. 93). The Holy Symbols table (p. 97) prints "Amulet (worn or held)", "Emblem (borne on fabric or a Shield)", "Reliquary (held)": names `Amulet`, `Emblem`, `Reliquary` (ids `holy_symbol_amulet`, `holy_symbol_emblem`, `holy_symbol_reliquary`) with the parenthetical kept as `note`, because the Holy Symbol text says the table "indicates whether a Holy Symbol needs to be held, worn, or borne". These are the only names that differ from the printed label (FR-005 yields); a label with its unit ("Ale (mug)") keeps it (`ale_mug`). The case table "Names and ids of grouped rows" MUST hold. | SRD 5.2.1, the tables of pp. 94-103 | happy |
+| FR-086 | The equipment files MUST NOT import `context`, start a goroutine or use a channel; every function is synchronous and deterministic. | architecture.md §3, §4 | happy |
+| FR-087 | The equipment domain MUST contain no observability call (no `Logger`, `Tracer`, `Meter` or signal constant). | observability.md §3 | happy |
+| FR-088 | Nothing in the data, code, tests or tools of this spec MAY name a consuming project (guardrail denylist scan, architecture-guardrails.md FR-025, FR-026, over the module, `tools/` and the data). | AGENTS.md ("Hard constraints") | happy |
+| FR-089 | The decoder additions (ten arrays, `cost.per`, `gearKind`, the fields of section 5) MUST stay behind `JSONDecoder` (the `decode*.go` files of package `content`), with no new exported name. | architecture.md §2, §5, §7 | happy |
+| FR-090 | No JSON key name and no `map[string]any` MUST appear in the signature or field of an exported equipment domain type. | architecture.md §5, §7 | happy |
+| FR-091 | Numeric fields MUST be range checked, as package-design sanity bounds (the SRD prints no limit): `carryingCapacityPounds` an integer of at least 1; vehicle `speedMph` and `cargoTons` numbers of at least 0.5 that are multiples of 0.5; `crew`, `passengers`, `armorClass`, `hitPoints` and `damageThreshold` integers of at least 1 (`passengers`, `cargoTons`, `damageThreshold` absent for a printed "—", FR-048). Below the bound, or a speed or tonnage off the half step, is `outOfRange` at its path (`/airborneAndWaterborneVehicles/<i>/hitPoints`, `/mounts/<i>/carryingCapacityPounds`); a non-number is `wrongType`. `weightPounds` on a tack row, vehicle or gear row follows FR-080. | content-schema-and-decoder.md FR-023; SRD 5.2.1, pp. 100-101 | unhappy (boundary) |
+| FR-092 | A consumer importing only the public packages (`content`, `content/data`) MUST be able to load the bundled equipment through `data.BundledSource`, look up Leather Armor and see a `BaseRule` of 11 with the full Dexterity modifier, and look up Plate Armor and see Strength requirement 15 (scenario test, `package scenarios_test`). Computing AC and the speed penalty is equipment-rules.md's scenario. | architecture.md §7; testing.md §3 | happy |
+| FR-093 | `ArmorClassRule` MUST be closed with exactly `BaseRule` (a base value and a closed Dexterity treatment: `FullDexterity`, `CappedDexterity(maximum)`, `NoDexterity`) and `BonusRule` (a bonus): immutable data with no evaluation method. The bundled treatments are Light full, Medium capped at 2, Heavy none, as the Armor table prints. | SRD 5.2.1, Armor table and "Armor Class (AC)", p. 92; shared-types-and-ownership.md FR-006 | unhappy (rule interaction) |
+| FR-094 | `MagicGear` MUST carry an optional `craftingOverride` (raw material `Cost`, `days`, tool ids) as data. Potion of Healing carries 25 GP raw material, 1 day (8 hours of work) and tool `herbalism_kit`; the data test checks it against the golden. Applying it is equipment-rules.md's. A `craftingOverride` on another gear subtype is `constraintViolation` at that field; a tool id naming no entry is `unresolvedReference` at its path. | SRD 5.2.1, "Brewing Potions of Healing", p. 103; Potion of Healing, p. 99 | unhappy (rule interaction) |
+| FR-095 | No equipment type implements a magic-item marker and there is no `magicItem` flag in the domain or on the wire (Q19; shared-types-and-ownership.md FR-047). Equipment code imports nothing from content-magic-items.md. Exactly four bundled entries are magic items by their own text, held only by `MagicGear`, `ScrollFamily` and `ScrollVariant`: Potion of Healing, Spell Scroll, Spell Scroll (Cantrip), Spell Scroll (Level 1) (p. 99). They are recognised by `ItemID`; mapping an id to a magic item is content-magic-items.md's concern. | SRD 5.2.1, "Potion of Healing", "Spell Scroll", p. 99; shared-types-and-ownership.md FR-047 | unhappy (rule interaction) |
+| FR-096 | `content/data/equipment.json` is the source of truth and is embedded directly with `go:embed` (content-schema-and-decoder.md FR-120); its stem is `equipment`, and `data.Files()` lists it (decoder FR-122; content-source-port.md FR-064). This spec adds no generator, drift test, header or README check or `NOTICE.md` path check: those are decoder FR-120 to FR-124, architecture-guardrails.md FR-078 and FR-079 (owner shared-types-and-ownership.md FR-050) and content-licensing-and-notice.md FR-027 and FR-029. | shared-types-and-ownership.md FR-030, FR-032, FR-033; content-schema-and-decoder.md FR-120 to FR-124 | happy |
+| FR-097 | This spec adds no port, adapter or test double. `contenttest.FakeSource` is the double (exported by `content/contenttest`); unit tests build small synthetic entries; the shared `Source` contract suite is `contenttest.RunSourceContract`, exported (shared-types-and-ownership.md FR-036 to FR-039). Nothing here imports `contenttest` outside `_test.go` files. | shared-types-and-ownership.md FR-036 to FR-039 | happy |
+
+### Weapon, armor, cost and entry shape (owned here)
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-098 | `Coin` MUST be the enum `cp`, `sp`, `ep`, `gp`, `pp` (wire `CP`, `SP`, `EP`, `GP`, `PP`) and `CostRate` the enum `day`, `mile` (wire `per`: `Day`, `Mile`). `Cost(amount, coin, {per})` MUST be an immutable value object exposing `amount`, `coin`, `per` (`CostRate?`) and `valueInCopper` (FR-010); its constructor return an error wrapping `srderr.ErrInvalidInput` for a negative `amount`. | SRD 5.2.1, "Coins", p. 89; "Hirelings", p. 102 | unhappy (invalid input) |
+| FR-101 | `WeaponCategory` MUST be `simple` or `martial` (wire `Simple`, `Martial`) and `WeaponType` `melee` or `ranged` (wire `Melee`, `Ranged`), both exhaustive in a `switch`. | SRD 5.2.1, "Weapons", p. 89 | happy |
+| FR-102 | `WeaponDamage` MUST be closed with exactly `WeaponDiceDamage{dice, type}` (a `dice.Expression` with modifier 0, and a `DamageType`) and `WeaponFixedDamage{amount, type}` (integer of at least 1), so Blowgun's printed "1 Piercing" is a `WeaponFixedDamage` of 1. The `Weapon` prefix avoids the names `DiceDamage` and `FixedDamage` exported by attacks.md (shared-types-and-ownership.md FR-017, FR-021). On the wire `damage` is an object with exactly one key, `dice` (`<count>d<sides>` with an explicit count and no modifier, such as `1d8`; stricter than `dice.ParseExpression` of dice-and-rolls.md FR-017, which reads `d8` as `1d8`, FR-110) or `fixed` (an integer), and the separate `damageType` field uses the SRD spelling (decoder FR-025). | SRD 5.2.1, "Weapons", Damage, p. 89; Weapons table (Blowgun), p. 91 | unhappy (boundary) |
+| FR-103 | `WeaponPropertyUse` MUST be closed, each exposing its `property`: `PlainUse(property)` for Finesse, Heavy, Light, Loading, Reach (any other property: a validation error); `AmmunitionUse(range, ammunition)`; `ThrownUse(range)`; `VersatileUse(damage)` (a `dice.Expression`, the two-handed damage in parentheses); `TwoHandedUse(condition)` with `TwoHandedCondition` `always` or `unlessMounted` (Lance). `RangePair(normal, long)` holds integers, `normal` at least 1 and `long` greater than `normal`; `AmmunitionType` is `arrow`, `bolt`, `bullet`, `needle` (wire `Arrow`, `Bolt`, `Bullet`, `Needle`; Q10). A weapon's list keeps printed order, each property at most once; a weapon printed "—" has an empty list. | SRD 5.2.1, "Properties", pp. 89-90; Weapons table, p. 91 | unhappy (rule interaction) |
+| FR-104 | `ArmorCategory` MUST be `light`, `medium`, `heavy`, `shield` (wire `Light`, `Medium`, `Heavy`, `Shield`), exhaustive in a `switch`, exposing `donTime` and `doffTime` as `DonDoffTime`, closed with `DonDoffMinutes(minutes)` and `DonDoffByUtilize` (values: FR-022). | SRD 5.2.1, Armor table headings, p. 92 | happy |
+| FR-105 | `Armor` MUST be an entry type with `category`, `armorClass` (`ArmorClassRule`, FR-093), `strengthRequirement` (integer 1 to 30, or absent where the table prints "—"), `stealthDisadvantage` (boolean, FR-026), `weight` (always a `Weight`) and `price` (`FixedCost`). Wire names: `category`, `armorClass` (`{"base", "dexterity", "maximum"?}` or `{"bonus"}`), `strengthRequirement`, `stealthDisadvantage`, `weightPounds`, `cost`. | SRD 5.2.1, Armor table, p. 92 | happy |
+| FR-106 | `Weapon` MUST be an entry type with `category`, `weaponType`, `damage`, `properties` (a copied slice of `WeaponPropertyUse`s), `mastery` (one `MasteryProperty`), `weight` (a `Weight`, or `NoWeight` for the Sling's "—"; never `WeightVaries`) and `price` (`FixedCost`). Wire names: `category`, `weaponType`, `damage`, `damageType`, `properties`, `mastery`, `weightPounds`, `cost`. | SRD 5.2.1, "Weapons", p. 89; Weapons table, p. 91 | happy |
+| FR-107 | Every reference from one equipment entry to another in the domain MUST be an `ItemID` (decoder FR-114, FR-128): `variantOf`, `variants`, `alsoCountsAs`, `PackItem.id`, `CraftItem.id`, `CraftSet.except`, and the tool ids of a `CraftingOverride`. The wire form is the id string of FR-003. Magic item entries reach an equipment entry only by `ItemID`. | content-schema-and-decoder.md FR-114, FR-128; shared-types-and-ownership.md FR-005, FR-046 | happy |
+| FR-108 | `ToolUtilizeAction{description, dc}` MUST be a value object with a non-blank `description` and integer `dc` of at least 1 (`NewToolUtilizeAction` returns an error wrapping `srderr.ErrInvalidInput` otherwise), and `CraftingOverride{rawMaterials, days, toolIDs}` one with a `Cost`, integer `days` of at least 1 and a copied (possibly empty) slice of `ItemID`s (`NewCraftingOverride`, same error); immutable, compared by value (`Equal` where a slice is held); a violated precondition is a returned validation error (`MustX` panics). Override wire form: `{"rawMaterials": {amount, coin}, "days", "toolIds": [ids]}`. | SRD 5.2.1, "Tools", Utilize, pp. 93-94; "Brewing Potions of Healing", p. 103 | unhappy (invalid input) |
+| FR-109 | A weapon MUST have `category`, `weaponType`, `damage`, `damageType`, `properties`, `mastery` and `cost` (FR-080): a missing one is `missingField` at `/weapons/<i>/<field>`; a `category` outside `Simple`, `Martial`, a `weaponType` outside `Melee`, `Ranged`, a `damageType` outside the thirteen spellings and a `mastery` outside the eight are `invalidValue` there; a wrong JSON type is `wrongType`. An armor MUST have `category`, `armorClass`, `stealthDisadvantage`, `cost` and `weightPounds` (missing: `missingField`): `category` outside `Light`, `Medium`, `Heavy`, `Shield` is `invalidValue` at `/armor/<i>/category`; a non-boolean `stealthDisadvantage` `wrongType`; `strengthRequirement` outside 1 to 30 `outOfRange` and a non-integer `wrongType` at `/armor/<i>/strengthRequirement`. | SRD 5.2.1, "Weapons", p. 89; "Armor", p. 92; decoder FR-023, FR-025 | unhappy (invalid input) |
+| FR-110 | `damage` of a weapon MUST hold exactly one of `dice` and `fixed`: neither is `missingField` and both `constraintViolation`, at `/weapons/<i>/damage`; a `dice` that is not `<count>d<sides>` with explicit count of at least 1 and no modifier (`d8`, `xd8`, `1d`, `1d8+1` all rejected) is `invalidValue` at `…/damage/dice`; `fixed` below 1 is `outOfRange` at `…/damage/fixed`, a non-integer `wrongType`. The decoder is deliberately stricter than `dice.ParseExpression`. | SRD 5.2.1, Weapons table, p. 91 | unhappy (boundary) |
+| FR-111 | Each element of `properties` MUST have `property` (missing `missingField` at `/weapons/<i>/properties/<j>/property`; outside the nine spellings of decoder FR-113 `invalidValue`); a repeat within one weapon is `duplicate` at the later `/weapons/<i>/properties/<k>` (decoder FR-026). `range` (`{normal, long}`) is required on `Ammunition` and `Thrown` (`missingField` at `…/range`) and forbidden elsewhere (`constraintViolation`); `normal` below 1 is `outOfRange` at `…/range/normal`; `long` not greater than `normal` is `constraintViolation` at `…/range/long`. `ammunition` is required on `Ammunition` (`missingField`; outside `Arrow`, `Bolt`, `Bullet`, `Needle`: `invalidValue`) and forbidden elsewhere (`constraintViolation`). `damage` (a die-expression string) is required on `Versatile` (`missingField`; malformed `invalidValue`) and forbidden elsewhere (`constraintViolation`). `condition` is allowed only on `Two-Handed`, with the single value `unless mounted` (else `invalidValue`; elsewhere `constraintViolation`). | SRD 5.2.1, "Properties", pp. 89-90; Weapons table, p. 91 | unhappy (rule interaction) |
+| FR-112 | `armorClass` of an armor MUST hold either `base` with `dexterity`, or `bonus`: neither is `missingField` and both keys `constraintViolation` at `/armor/<i>/armorClass`; `base` outside 1 to 30 and `bonus` outside 1 to 10 are `outOfRange`; `dexterity` outside `full`, `capped`, `none` is `invalidValue` at `…/dexterity`; `maximum` is required when `capped` (`missingField` at `…/maximum`), forbidden otherwise (`constraintViolation`), and below 0 is `outOfRange`. A `bonus` on a category other than `Shield`, or a `base` on a `Shield`, is `constraintViolation` at `/armor/<i>/armorClass` (FR-024). | SRD 5.2.1, Armor table, p. 92 | unhappy (rule interaction) |
+| FR-113 | A `StandaloneTool` and a `ToolFamily` MUST have `toolGroup`: missing is `missingField` at `/tools/<i>/toolGroup`, a value other than `Artisan's Tools` and `Other Tools` (exact spelling, decoder FR-025) `invalidValue`, a non-string `wrongType`; a `ToolVariant` MUST NOT have it (`constraintViolation`; its group is its family's). | SRD 5.2.1, "Artisan's Tools", "Other Tools", pp. 93-94 | unhappy (invalid input) |
+| FR-114 | A `scrollVariant` gear entry MUST have `spellLevel`, an integer 0 to 9: missing `missingField`, outside `outOfRange` (decoder FR-023), non-integer `wrongType`, at `/adventuringGear/<i>/spellLevel`; `spellLevel` on any other `gearKind` is `constraintViolation`. The two bundled rows carry 0 and 1 (FR-081). | SRD 5.2.1, "Spell Scroll", p. 99; FR-118 | unhappy (boundary) |
+| FR-115 | `weightNote` and `note` MUST be non-blank when present (`invalidValue` at `/…/weightNote`, `/…/note`; non-string `wrongType`). A `weightNote` without `weightPounds` is `constraintViolation` at `/…/weightNote`. `note` is a field of `adventuringGear` only; on any other array it is `unknownField`. | SRD 5.2.1, Adventuring Gear table (Waterskin "5 lb. (full)"), p. 95; Holy Symbols table, p. 97 | unhappy (invalid input) |
+| FR-116 | A lifestyle expense MUST have a non-blank `text`: missing `missingField`, blank `invalidValue` (decoder FR-028), at `/lifestyleExpenses/<i>/text`. `text` is allowed on `adventuringGear` (FR-037) and `lifestyleExpenses` only; on any other new array it is `unknownField`. | SRD 5.2.1, "Lifestyle Expenses", p. 101 | unhappy (missing content) |
+| FR-117 | A `craftingOverride` (FR-094, FR-108) MUST have `rawMaterials` (a cost per FR-080; missing `missingField` at `…/craftingOverride/rawMaterials`), `days` (integer of at least 1: `outOfRange` at `…/days`; missing `missingField`) and `toolIds` (array, possibly empty; missing `missingField`; an id naming no tool `unresolvedReference` at `…/toolIds/<k>`). | SRD 5.2.1, "Brewing Potions of Healing", p. 103 | unhappy (boundary) |
+| FR-118 | A spell level in an equipment type (`ScrollVariant.spellLevel`, `SpellcastingService.spellLevelMin` and `spellLevelMax`, `SpellScrollCost.spellLevel`) MUST be a plain `int` 0 to 9, validated by the entry constructor (a returned validation error) and the decoder (`outOfRange`, decoder FR-023, at the paths of FR-057, FR-064, FR-114). No equipment code imports a type from content-spells.md. This is a deliberate, recorded exception to architecture.md §10: a `SpellLevel` value object exists (content-spells.md FR-009, FR-010) but shared-types-and-ownership.md FR-047 forbids this data spec depending on it. The conversion is the consumer's: equipment-rules.md, which depends on content-spells.md, MUST state how the stored `int` becomes a `SpellLevel` (`NewSpellLevel` cannot fail on a value bounded to 0 to 9; Q21). | SRD 5.2.1, "Spellcasting Services", p. 102; "Spell Scroll Costs", p. 103; shared-types-and-ownership.md FR-047 | unhappy (boundary) |
+| FR-119 | Utilize DCs are data on **tools only**: each `ToolUtilizeAction` (FR-029, FR-108) carries the DC the tool entry prints (Thieves' Tools 15, Poisoner's Kit 10, ...), for `tool-proficiency-and-crafting.md`. A gear entry gets no structured Utilize field: the SRD prints no "Utilize: ... (DC n)" line for gear; its Utilize effects sit in prose with unlike mechanics (a Dexterity save of DC 8 plus modifiers, a DC 13 Strength check, a DC 15 Sleight of Hand check), so they stay verbatim in `text` (FR-037). A gear `utilize` field is `unknownField`, as FR-116 does for `text`. | SRD 5.2.1, "Tools", p. 93; "Adventuring Gear", pp. 94-100 | unhappy (invalid input) |
+
+### Withdrawn ids
+
+Case tables of the moved rule maths (Armor Class, Strength requirement, Which tools craft an item, Drawn load, Barding, Ship repair, Spellcasting fee by level, Crafting, Crafting requirements, Scroll scribing) moved with them; the data they read stays here (FR-093, FR-094, FR-057, FR-064, FR-029 to FR-031).
+
+| Id | Withdrawn |
+|---|---|
+| FR-023 | Withdrawn: moved to equipment-rules.md (FR-001 to FR-006) |
+| FR-025 | Withdrawn: moved to equipment-rules.md (FR-007 to FR-010) |
+| FR-032 | Withdrawn: moved to equipment-rules.md (FR-037 to FR-039) |
+| FR-045 | Withdrawn: dropped; no magic-item marker here (FR-095) |
+| FR-050 | Withdrawn: moved to equipment-rules.md (FR-021 to FR-025) |
+| FR-051 | Withdrawn: moved to equipment-rules.md (FR-026 to FR-028) |
+| FR-052 | Withdrawn: moved to equipment-rules.md (FR-029 to FR-032) |
+| FR-053 | Withdrawn: moved to equipment-rules.md (FR-029 to FR-032) |
+| FR-058 | Withdrawn: moved to equipment-rules.md (FR-052 to FR-057) |
+| FR-059 | Withdrawn: moved to equipment-rules.md (FR-052 to FR-057) |
+| FR-060 | Withdrawn: moved to equipment-rules.md (FR-052 to FR-057) |
+| FR-061 | Withdrawn: moved to equipment-rules.md (FR-033 to FR-036) |
+| FR-062 | Withdrawn: moved to equipment-rules.md (FR-033 to FR-036) |
+| FR-063 | Withdrawn: moved to equipment-rules.md (FR-041) |
+| FR-065 | Withdrawn: moved to equipment-rules.md (FR-042, FR-043) |
+| FR-083 | Withdrawn: moved to equipment-rules.md (FR-065) |
+| FR-084 | Withdrawn: moved to equipment-rules.md (FR-040, FR-044 to FR-048) |
+| FR-085 | Withdrawn: moved to equipment-rules.md (FR-040, FR-044 to FR-048) |
+| FR-099 | Withdrawn: moved to content-schema-and-decoder.md (FR-113) |
+| FR-100 | Withdrawn: moved to content-schema-and-decoder.md (FR-113) |
+
+### Process requirements (not tested by CI; recorded in the change summary)
+
+| Id | Step |
+|---|---|
+| PR-1 | The golden fixtures are transcribed by someone, or something, that did not see the extraction tool's draft (section 5, step 3). |
+| PR-2 | Before the change merges and before each release, `tools/check_equipment_pages` (FR-073) is run on the real PDF text and its (empty) report recorded. Text: build a local image, `docker build -t srd5e-pdftotext -f tools/pdftotext.Dockerfile tools/` (`FROM golang` plus `apt-get install -y poppler-utils`; the `golang` image has no `pdftotext`), then `docker run --rm -v /path/to/dir-with-pdf:/in:ro -v /tmp:/out srd5e-pdftotext pdftotext -layout -f 89 -l 103 /in/srd521.pdf /out/srd89-103.txt`, so the text never enters the repository. |
+| PR-3 | Anything that looks like core equipment but is absent from the PDF is listed in the change summary (FR-074). The Spellbook item (not in the Equipment chapter; Wizard text, pp. 77-78) is listed so the Wizard starting-equipment line in class-wizard.md FR-009 stays name-only, not left dangling on a missing `ItemID`. |
+
+### Cases: id derivation (one test per row; `tools/id_slug_test.go`)
+
+| Label | Printed name (group or family) | Expected id | FR | Path |
+|---|---|---|---|---|
+| plain-club | Club | `club` | FR-003 | happy |
+| plain-war-pick | War Pick | `war_pick` | FR-003 | happy |
+| apostrophe-thieves | Thieves’ Tools | `thieves_tools` | FR-003 | happy |
+| apostrophe-alchemists | Alchemist’s Fire | `alchemists_fire` | FR-003 | happy |
+| comma-bottle | Bottle, Glass | `bottle_glass` | FR-003 | happy |
+| comma-clothes | Clothes, Traveler’s | `clothes_travelers` | FR-003 | happy |
+| comma-case | Case, Map or Scroll | `case_map_or_scroll` | FR-003 | happy |
+| comma-horse | Horse, Draft | `horse_draft` | FR-003 | happy |
+| scroll-level | Spell Scroll (Level 1) | `spell_scroll_level_1` | FR-003 | happy |
+| scroll-cantrip | Spell Scroll (Cantrip) | `spell_scroll_cantrip` | FR-003 | happy |
+| family-focus | Crystal (family `arcane_focus`) | `arcane_focus_crystal` | FR-003, FR-082 | happy |
+| family-ammunition | Bullets, Firearm (family `ammunition`) | `ammunition_bullets_firearm` | FR-003, FR-082 | happy |
+| family-gaming | three-dragon ante (family `gaming_set`) | `gaming_set_three_dragon_ante` | FR-003, FR-082 | happy |
+| group-inn | Squalid (group Inn Stay per Day) | `inn_stay_per_day_squalid` | FR-003, FR-082 | happy |
+| ungrouped-lifestyle | Squalid (ungrouped lifestyle) | `squalid` | FR-003 | unhappy (rule interaction: same word, different table) |
+| en-dash | 4–5 (en dash; group Spellcasting Services) | `spellcasting_services_4_5` | FR-003 | unhappy (boundary) |
+| empty-after-normalising | ’’ (normalises to nothing) | no id: the tool reports it and writes no entry | FR-071 | unhappy (invalid input) |
+| clash | Bottle, Glass and Bottle Glass | the tool reports the clash; a document holding both has the second rejected `duplicate` | FR-004 | unhappy (invalid input) |
+| length-64 | synthetic name of 64 letters | slug returns an id of 64 characters | FR-003 | unhappy (boundary) |
+| length-65 | synthetic name of 65 letters | the tool reports it, writes no entry; the decoder rejects a 65-character `id` with `invalidValue` at `/…/id` | FR-003 | unhappy (boundary) |
+
+### Cases: Names and ids of grouped rows (one test per row; Tack, Food, Drink, and Lodging, Spellcasting Services, Gaming Set and Holy Symbol tables, pp. 94-103)
+
+| Label | Group and row as printed | Expected name; id | FR | Path |
+|---|---|---|---|---|
+| saddle-exotic | Saddle, Exotic (Tack table, p. 100) | `Saddle, Exotic`; `saddle_exotic` | FR-082 | happy |
+| inn-squalid | Inn Stay per Day, Squalid (p. 101) | `Inn Stay per Day, Squalid`; `inn_stay_per_day_squalid` | FR-082 | happy |
+| meal-aristocratic | Meal, Aristocratic (pp. 101-102) | `Meal, Aristocratic`; `meal_aristocratic` | FR-082 | happy |
+| wine-fine | Wine (bottle), Fine (p. 102) | `Wine (bottle), Fine`; `wine_bottle_fine` | FR-082 | happy |
+| services-cantrip | Spellcasting Services, Cantrip (p. 102) | `Spellcasting Services, Cantrip`; `spellcasting_services_cantrip` | FR-082 | happy |
+| services-6-8 | Spellcasting Services, 6–8 (p. 102) | `Spellcasting Services, 6–8`; `spellcasting_services_6_8` | FR-082 | unhappy (boundary) |
+| scroll-costs-9 | Spell Scroll Costs, 9 (p. 103) | `Spell Scroll Costs, 9`; `spell_scroll_costs_9` | FR-082 | unhappy (boundary) |
+| ale-mug | Ale (mug) (p. 101) | `Ale (mug)`; `ale_mug` | FR-082 | happy |
+| wretched-free | Wretched (Free) (p. 101) | `Wretched`; `wretched`; price `Cost(0, Coin.gp, per: CostRate.day)` (package-design choice; "(Free)" is not part of the name) | FR-054, FR-082 | unhappy (empty case) |
+| gaming-dragonchess | dragonchess in Gaming Set (p. 94) | `dragonchess`; `gaming_set_dragonchess` | FR-082 | happy |
+| scroll-heading | Spell Scroll (Cantrip, 30 GP; Level 1, 50 GP) heading (p. 99) | `Spell Scroll`; `spell_scroll` | FR-081, FR-082 | unhappy (boundary) |
+| holy-amulet | Amulet (worn or held) (p. 97) | `Amulet`; `holy_symbol_amulet`; `note` `worn or held` | FR-082 | unhappy (boundary) |
+| holy-emblem | Emblem (borne on fabric or a Shield) (p. 97) | `Emblem`; `holy_symbol_emblem`; `note` `borne on fabric or a Shield` | FR-082 | unhappy (boundary) |
+| holy-reliquary | Reliquary (held) (p. 97) | `Reliquary`; `holy_symbol_reliquary`; `note` `held` | FR-082 | unhappy (boundary) |
+
+### Cases: Weapons: unusual rows (one test per row; FR-018; Weapons table, p. 91)
+
+| Label | Weapon | Expected decoding | Path |
+|---|---|---|---|
+| blowgun | Blowgun | Martial Ranged; fixed damage 1 Piercing; Ammunition (Range 25/100; Needle), Loading; Vex; 1 lb.; 10 GP | unhappy (boundary) |
+| lance | Lance | Martial Melee; 1d10 Piercing; Heavy, Reach, Two-Handed "unless mounted"; Topple; 6 lb.; 10 GP | unhappy (rule interaction) |
+| dart | Dart | Simple Ranged; 1d4 Piercing; Finesse, Thrown (Range 20/60); Vex; 0.25 lb.; 5 CP | unhappy (boundary) |
+| sling | Sling | Simple Ranged; 1d4 Bludgeoning; Ammunition (Range 30/120; Bullet); Slow; no weight; 1 SP | unhappy (empty case: no weight) |
+| mace | Mace | Simple Melee; 1d6 Bludgeoning; no properties; Sap; 4 lb.; 5 GP | unhappy (empty case: no properties) |
+| spear | Spear | Simple Melee; 1d6 Piercing; Thrown (Range 20/60), Versatile (1d8); Sap; 3 lb.; 1 GP | happy |
+| longsword | Longsword | Martial Melee; 1d8 Slashing; Versatile (1d10); Sap; 3 lb.; 15 GP | happy |
+| greatsword | Greatsword | Martial Melee; 2d6 Slashing; Heavy, Two-Handed; Graze; 6 lb.; 50 GP | happy |
+| heavy-crossbow | Heavy Crossbow | Martial Ranged; 1d10 Piercing; Ammunition (Range 100/400; Bolt), Heavy, Loading, Two-Handed; Push; 18 lb.; 50 GP | happy |
+| musket | Musket | Martial Ranged; 1d12 Piercing; Ammunition (Range 40/120; Bullet), Loading, Two-Handed; Slow; 10 lb.; 500 GP | unhappy (boundary: highest cost) |
+
+### Cases: Gear: unusual rows (one test per row; FR-035; Adventuring Gear table, p. 95 unless noted)
+
+| Label | Entry | Expected decoding | Path |
+|---|---|---|---|
+| ammunition-family | Ammunition family | `GearFamily`: `CostVaries`, `WeightVaries`, five `AmmunitionVariant`s | unhappy (rule interaction) |
+| antitoxin | Antitoxin | no weight; 50 GP | unhappy (empty case) |
+| waterskin | Waterskin | 5 lb., `weightNote` "full"; 2 SP | unhappy (boundary) |
+| entertainers-pack | Entertainer's Pack | 58.5 lb.; 40 GP | unhappy (boundary) |
+| spyglass | Spyglass | 1,000 GP (thousands separator removed) | unhappy (boundary) |
+| sack | Sack | 0.5 lb.; 1 CP | unhappy (boundary) |
+| scroll-cantrip | Spell Scroll (Cantrip) ("Spell Scroll", p. 99) | no weight; 30 GP; magic item | happy |
+| scroll-level-1 | Spell Scroll (Level 1) ("Spell Scroll", p. 99) | no weight; 50 GP; magic item | happy |
+| staff-focus | Staff (Arcane Focus, p. 96) | 4 lb.; 5 GP; counts as the Quarterstaff | happy |
+| holy-amulet | Amulet (Holy Symbols, p. 97) | 1 lb.; 5 GP; `note` "worn or held" | unhappy (boundary) |
+| holy-emblem | Emblem (Holy Symbols, p. 97) | no weight; 5 GP; `note` "borne on fabric or a Shield" | unhappy (empty case: no weight) |
+| holy-reliquary | Reliquary (Holy Symbols, p. 97) | 2 lb.; 5 GP; `note` "held" | unhappy (boundary) |
+| gaming-set-family | Gaming Set ("Gaming Set", p. 94) | `ToolFamily`: `CostVaries`; `NoWeight` (not `WeightVaries`); four `ToolVariant`s with a price only | unhappy (rule interaction) |
+| scroll-family | Spell Scroll family ("Spell Scroll", p. 99) | `ScrollFamily`: `CostVaries`, `NoWeight`; two `ScrollVariant`s (levels 0 and 1) counted in the 82 | unhappy (rule interaction) |
+
+### Cases: Text normalisation (one test per row; FR-038)
+
+| Label | PDF text across a line break | Expected stored text | Path |
+|---|---|---|---|
+| soft-hyphen | `Es-` / `caping the Chain` (p. 96) | `Escaping the Chain` | happy |
+| compound-hyphen | `10-foot-` / `square area` (Ball Bearings, p. 96) | `10-foot-square area` | unhappy (rule interaction) |
+| one-line-compound | `5-foot-square area` on one line (Caltrops, p. 96) | unchanged | happy |
+| line-join | `to hoist up to four` / `times the weight` (p. 96) | `to hoist up to four times the weight` | happy |
+| two-columns | synthetic two columns: `L1 line one      R1 line one` / `L2 line two      R2 line two` | `L1 line one L2 line two R1 line one R2 line two` | unhappy (rule interaction) |
+| apostrophe-kept | `Alchemist’s Fire` | unchanged | unhappy (boundary) |
+| unsure-hyphen | `non-` / `magical` | reported by the tool, decided by a person (FR-071) | unhappy (invalid input) |
+
+### Cases: decoder problems of the new kinds (each `;`-separated case is its own test: label = FR plus the case text, path = happy or boundary when the expected result is accepted, unhappy otherwise; expected is `path, kind`)
+
+| Case for | Cases (input → expected) |
+|---|---|
+| Cases for FR-029 | `herbalism_kit` without `utilize` → `/tools/<i>/utilize, missingField`; `utilize` `[]` → `…/utilize, outOfRange`; `dc` 0 → `…/utilize/0/dc, outOfRange`; `dc` 1 → accepted; description `" "` → `…/utilize/0/description, invalidValue`; `gaming_set_dice` with `variantOf`, a price, no `ability`/`utilize` → accepted; same with `ability` → `/tools/<i>/ability, constraintViolation` |
+| Cases for FR-030 | variant without `cost` → `/tools/<i>/cost, missingField`; `variantOf` `no_such_family` → `…/variantOf, unresolvedReference`; `variantOf` `herbalism_kit` → `…/variantOf, constraintViolation`; a variant that also has `variants` → `…/variants, constraintViolation`; two families both listing `dice` → `/tools/<j>/variants/<k>, constraintViolation` at the later family |
+| Cases for FR-031 | `{"kind":"set","set":"Shields"}` → `…/craft/0/set, invalidValue`; item `nothing` → `…/craft/0/id, unresolvedReference`; `except` `["nothing"]` → `…/craft/0/except/0, unresolvedReference` |
+| Cases for FR-113 | no `toolGroup` → `/tools/<i>/toolGroup, missingField`; `Artisan Tools` → `invalidValue`; `toolGroup` on `gaming_set_dice` → `constraintViolation` |
+| Cases for FR-012, FR-013, FR-014 | `per` `Hour` → `/…/cost/per, invalidValue`; gear family with `cost` and `costVaries` → `/adventuringGear/<i>/costVaries, constraintViolation`; non-family gear with neither → `…/cost, missingField`; `plain` gear with `costVaries` → `…/costVaries, constraintViolation` |
+| Cases for FR-037, FR-039 | `plain` without `text` → `…/text, missingField`; `gearKind` `pouch` → `…/gearKind, invalidValue`; `contents` on `plain` → `…/contents, constraintViolation`; `focusVariant` with `variants` → `…/variants, constraintViolation`; `family` with `variants` `[]` → `…/variants, outOfRange`; `scrollVariant` with `variantOf` `ammunition` → `…/variantOf, constraintViolation` |
+| Cases for FR-040, FR-041 | `alsoCountsAs` `nothing` → `…/alsoCountsAs, unresolvedReference`; `backpack` → `constraintViolation`; ammunition `amount` 0 → `…/ammunition/amount, outOfRange`; `storage` `""` → `…/ammunition/storage, invalidValue` |
+| Cases for FR-042 | `contents` `[]` → `…/contents, outOfRange`; `quantity` 0 → `…/contents/0/quantity, outOfRange`; item `nothing` → `…/contents/0/id, unresolvedReference` |
+| Cases for FR-080 | mount cost `{amount: -1, coin: GP}` → `/mounts/<i>/cost/amount, outOfRange`; hireling coin `GC` → `/hirelings/<i>/cost/coin, invalidValue`; vehicle `weightPounds` -1 → `/airborneAndWaterborneVehicles/<i>/weightPounds, outOfRange`; `cost` `{amount: 1}` → `/…/cost/coin, missingField`; `amount` `"5"` → `/…/cost/amount, wrongType` |
+| Cases for FR-091 | `carryingCapacityPounds` 0 → `/mounts/<i>/carryingCapacityPounds, outOfRange`; `speedMph` 1.25 → `…/speedMph, outOfRange`; `hitPoints` 0 → `…/hitPoints, outOfRange`; `crew` `"10"` → `…/crew, wrongType` |
+| Cases for FR-057 | `spellLevelMin` 5, `spellLevelMax` 4 → `/spellcastingServices/<i>/spellLevelMax, constraintViolation`; max 10 → `…/spellLevelMax, outOfRange`; min -1 → `…/spellLevelMin, outOfRange`; rows 0-3 and 5-9 (gap) or 0-4 and 4-9 (overlap) → `/spellcastingServices, constraintViolation`; `availability` `Anywhere` → `…/availability, invalidValue` |
+| Cases for FR-064 | two rows with `spellLevel` 3 → `/spellScrollCosts/1/spellLevel, duplicate`; rows 0-8 only → `/spellScrollCosts, constraintViolation`; `spellLevel` 10 → `…/spellLevel, outOfRange`; `days` 0 → `…/days, outOfRange` |
+| Cases for FR-008 | root key `shields` → `/shields, unknownField` |
+| Cases for FR-109 | weapon without `category` → `/weapons/<i>/category, missingField`; `Exotic` → `invalidValue`; `weaponType` `Thrown` → `invalidValue`; `damageType` `Psychics` → `invalidValue`; no `damageType` → `missingField`; no `mastery` → `missingField`; `mastery` `Pierce` → `invalidValue`; armor `category` `Heavy Armor` → `/armor/<i>/category, invalidValue`; `strengthRequirement` `"13"` → `wrongType`, 0 → `outOfRange`; `stealthDisadvantage` `"yes"` → `wrongType`, absent → `missingField` |
+| Cases for FR-110 | `damage` `6` → `/weapons/<i>/damage, wrongType`; `dice` and `fixed` → `constraintViolation`; `{}` → `missingField`; `dice` `xd8`, `d8` (accepted by `dice.ParseExpression`, rejected here), `1d8+1` → `…/damage/dice, invalidValue`; `fixed` 0 → `…/damage/fixed, outOfRange`; `fixed` 1 (Blowgun) → accepted as `WeaponFixedDamage` |
+| Cases for FR-111 | `property` `Range` → `…/properties/0/property, invalidValue`; `Light` twice → `…/properties/1, duplicate`; `Thrown` without `range` → `…/properties/0/range, missingField`; `Finesse` with `range` → `constraintViolation`; `range` `{normal: 0, long: 10}` → `…/range/normal, outOfRange`; `{normal: 20, long: 20}` → `…/range/long, constraintViolation`; `Ammunition` without `ammunition` → `…/ammunition, missingField`, `Stone` → `invalidValue`; `Versatile` without `damage` → `…/damage, missingField`; `Light` with `condition` → `…/condition, constraintViolation`; `Two-Handed` with `condition` `unless mounted` → accepted as `TwoHandedUse(unlessMounted)` |
+| Cases for FR-112 | `armorClass` `{}` → `/armor/<i>/armorClass, missingField`; `base` and `bonus` → `constraintViolation`; `capped` without `maximum` → `…/maximum, missingField`; `full` with `maximum` 2 → `…/maximum, constraintViolation`; `Light` with `bonus` 2, or `Shield` with `base` 11 → `…/armorClass, constraintViolation` |
+| Cases for FR-114 | `scrollVariant` without `spellLevel` → `…/spellLevel, missingField`; 10 → `outOfRange`; 0 → accepted; `plain` with `spellLevel` → `constraintViolation` |
+| Cases for FR-115 | `weightNote` `" "` → `/…/weightNote, invalidValue`; `weightNote` `full` without `weightPounds` → `constraintViolation`; gear `note` `""` → `/adventuringGear/<i>/note, invalidValue`; `note` on a mount → `/mounts/<i>/note, unknownField` |
+| Cases for FR-116 | lifestyle without `text` → `/lifestyleExpenses/<i>/text, missingField`; `" "` → `invalidValue`; `text` on a hireling → `/hirelings/<i>/text, unknownField` |
+| Cases for FR-094, FR-117 | `days` 0 → `…/craftingOverride/days, outOfRange`; `toolIds` `["nothing"]` → `…/craftingOverride/toolIds/0, unresolvedReference`; `craftingOverride` on `plain` → `…/craftingOverride, constraintViolation` |
+
+### Cases: Coins and Cost value (one test per row)
+
+| Label | Cost | Expected | Source | FR | Path |
+|---|---|---|---|---|---|
+| value-cp | 1 CP | 1 Copper Piece | Coin Values, p. 89 | FR-009, FR-010 | happy |
+| value-sp | 1 SP | 10 | Coin Values, p. 89 | FR-009, FR-010 | happy |
+| value-ep | 1 EP | 50 | Coin Values, p. 89 | FR-009, FR-010 | happy |
+| value-gp | 1 GP | 100 | Coin Values, p. 89 | FR-009, FR-010 | happy |
+| value-pp | 1 PP | 1,000 | Coin Values, p. 89 | FR-009, FR-010 | happy |
+| hundred-cp | 100 CP | 100 (equals 1 GP) | Coins, p. 89 | FR-010 | happy |
+| zero-gp | 0 GP | 0 | Lifestyle Expenses, Wretched (Free), p. 101 | FR-010 | unhappy (boundary) |
+| max-gp | 100,000 GP | 10,000,000 | Spellcasting Services, p. 102 | FR-010 | unhappy (boundary) |
+| negative | -1 GP | a validation error | architecture.md §6 | FR-010 | unhappy (invalid input) |
+| equality | 5 SP versus 50 CP | not equal, same value | | FR-011 | unhappy (rule interaction) |
+| compare-equal | `CompareCost(5 SP, 50 CP)` | 0 | | FR-011 | unhappy (rule interaction) |
+| compare-less | `CompareCost(1 CP, 1 SP)` | negative | | FR-011 | happy |
+| compare-rates | `CompareCost(5 SP per Day, 5 SP)` | a validation error | | FR-011 | unhappy (invalid input) |
+| compare-per-day | `CompareCost(2 SP per Day, 1 GP per Day)` | negative | | FR-011 | unhappy (boundary) |
+
+## 5. Model
+
+- **Value objects** (immutable, compared by value, copied collections): `Cost`, `Price`, `WeightSpec`, `PackItem`, `AmmunitionData`, `CraftReference`, `ArmorClassRule`, `WeaponDamage`, `WeaponPropertyUse`, `RangePair`, `DonDoffTime`, `ToolUtilizeAction`, `CraftingOverride` and the entry types below. Closed sets are closed types or enums, so no invalid combination of the optional-looking JSON fields can be constructed (architecture.md §3). No aggregates, entities or events: entries are identified by `Key` and never change.
+- **Entry types** (all `Entry`, kind `equipment`; fields beyond `id`, `name`, `source`):
+
+  | Type | Fields |
+  |---|---|
+  | `Weapon` | `category`, `weaponType`, `damage`, `properties`, `mastery`, `weight`, `price` (FR-106) |
+  | `Armor` | `category`, `armorClass`, `strengthRequirement?`, `stealthDisadvantage`, `weight`, `price`; don and doff times via `ArmorCategory` (FR-105) |
+  | `Tool` (closed) | `StandaloneTool`: `toolGroup`, `ability`, `utilize` (non-empty), `craft`, `price` (`FixedCost`), `weight`. `ToolFamily` (Gaming Set, Musical Instrument): the same plus `variants`, `price` `CostVaries`. `ToolVariant`: `variantOf`, `price` (`FixedCost`), `weight`; no `ability`, `utilize`, `craft` |
+  | `AdventuringGear` (closed, FR-039) | all: `price`, `weight` (a `Weight` may carry `note`), `note?` (the Holy Symbols' remark, FR-082), `text` (every subtype but a variant). `PlainGear`; `MagicGear` (+ `craftingOverride?`); `GearFamily` (+ `variants`); `ScrollFamily` (+ `variants`); `AmmunitionVariant` (+ `variantOf`, `AmmunitionData`); `FocusVariant` (+ `variantOf`, `alsoCountsAs?`); `ScrollVariant` (+ `variantOf`, `spellLevel`); `Pack` (+ `contents`) |
+  | `Mount` | `carryingCapacityPounds`, `cost` |
+  | `TackHarnessOrDrawnVehicle` | `weight`, `cost` |
+  | `AirborneOrWaterborneVehicle` | `speedMph`, `crew`, `passengers?`, `cargoTons?`, `armorClass`, `hitPoints`, `damageThreshold?`, `weight`, `cost` (absence stands for a printed "—", a fact about a column, FR-048) |
+  | `LifestyleExpense` / `FoodDrinkOrLodging` / `Hireling` | `cost` (per Day for lifestyles; Inn Stay `per: Day`; hirelings Day or Mile), `text` on lifestyles |
+  | `SpellcastingService` / `SpellScrollCost` | `spellLevelMin`, `spellLevelMax`, `availability`, `cost` / `spellLevel`, `days`, `cost` (levels FR-118) |
+
+- **Schema additions** are one row of the revision table in content-schema-and-decoder.md (shared-types-and-ownership.md FR-034; no version number claimed). Flags are wire form only; the decoder maps them to closed types. There is no `magicItem` key (FR-095). JSON names are lower camel case and enum values use the SRD spelling (`toolGroup`: `Artisan's Tools` or `Other Tools`; `availability`: `Village, town, or city`, `Town or city only`, `City only`). Unknown keys are `unknownField`.
+
+  **Revision row R2-equipment** (what the table there must hold):
+
+  | Part | Content |
+  |---|---|
+  | Root arrays (after `weapons` and `armor`, in this order) | `tools`, `adventuringGear`, `mounts`, `tackHarnessAndDrawnVehicles`, `airborneAndWaterborneVehicles`, `lifestyleExpenses`, `foodDrinkAndLodging`, `hirelings`, `spellcastingServices`, `spellScrollCosts` (FR-008) |
+  | Shape of `weapons` and `armor` | owned here (shared-types-and-ownership.md FR-048): FR-098, FR-101 to FR-106, FR-109 to FR-112, FR-080; the schema spec's former weapon and armor rows moved to FR-080, FR-093, FR-103, FR-105, FR-106, FR-109 to FR-112 (Q20) |
+  | New fields | `cost.per`; `costVaries`; `weightVaries`; `weightNote`; `note` (gear); `gearKind` (FR-039); `toolGroup`, `ability`, `utilize`, `craft` (tools); `variants`, `variantOf`, `alsoCountsAs`, `ammunition`, `contents`, `spellLevel`, `craftingOverride` (gear); `text` (gear, lifestyle expenses); the numeric fields of FR-091; `spellLevelMin`, `spellLevelMax`, `availability`, `days` |
+  | Reference sites (decoder FR-035) | `/tools/<i>/variants/<j>`, `/tools/<i>/variantOf` (target a `ToolFamily`); `/tools/<i>/craft/<j>/id`, `/tools/<i>/craft/<j>/except/<k>` (any equipment entry); `/adventuringGear/<i>/variants/<j>`, `…/variantOf` (a gear entry of the matching family kind); `…/alsoCountsAs` (a weapon); `…/contents/<j>/id` (a gear entry); `…/craftingOverride/toolIds/<k>` (a tool). All resolve inside one document (FR-067) |
+  | Owner | content-equipment.md |
+
+  Counterpart edit (decoder spec): its R2-equipment row must drop "It extends, not redefines, the baseline `weapons` and `armor`"; the shape of `weapons` and `armor` is owned here.
+
+  Decoder lines that change with the row: FR-008 and FR-016 (root keys and order include the ten arrays) and FR-035 (the reference sites above are registered).
+- **Craft references**: `{"kind": "item", "id"}` or `{"kind": "set", "set": "MeleeWeapons" | "RangedWeapons" | "MediumArmor" | "HeavyArmor", "except": [ids]}`. A set expands over bundled weapons by `weaponType` and armor by `category`, so it cannot drift from the tables.
+- **Data layout:** one file, `content/data/equipment.json` (FR-079), because references never resolve across documents (decoder FR-035) and tools, gear and Craft lists reference weapons, armor and each other. It is embedded directly with `go:embed` (FR-096), so the pure core never reads a file at run time.
+- **Decisions on where constants live.** D1: items live in data; closed rule vocabularies live in code (`Coin` ratios, don and doff times; `WeaponProperty` and `MasteryProperty` are owned by the decoder spec, FR-113), because domain code must not trust data for its own logic. D2: `ArmorCategory` carries the don and doff times of FR-022; entries do not repeat them.
+- **Invariants and where enforced:** non-negative cost, integer amount, spell levels 0 to 9, positive `days`/`dc`: constructors (a validation error). Id pattern, uniqueness, field presence and types, ranges, Varies flags, subtype fields, reference resolution: the decoder (FR-004, FR-012 to FR-014, FR-029 to FR-031, FR-037 to FR-042, FR-057, FR-064, FR-067, FR-080, FR-091, FR-094, FR-109 to FR-117). Impossible field combinations: closed types (FR-013, FR-014, FR-024, FR-039, FR-093). Counts, goldens, weights, page ranges, pack sums: data tests (FR-015, FR-043, FR-044, FR-066, FR-072, FR-075).
+- **Failures:** bad content is a `Problem`; `NewCost` returns an error wrapping `srderr.ErrInvalidInput` (`MustCost` panics); `CompareCost` cannot fail; nothing returns a `PortError`. Results of the moved rule services are equipment-rules.md's (shared-types-and-ownership.md FR-017, FR-018). All code is synchronous and deterministic (FR-086).
+
+### Extraction and verification process
+
+Hand transcription checked against the PDF page stays the rule; extraction is a drafting aid, never a committed source of truth (content-schema-and-decoder.md Q1, decided; Q11). At 258 entries and about 700 fields neither hand typing nor extraction alone is safe, so neither is trusted by itself:
+
+1. **Draft** (`tools/extract_equipment`, FR-070, FR-071): parses the `pdftotext -layout` text of printed pages 89-103 (PDF URL in `doc/research/sources.md`; text as PR-2) and writes draft JSON plus a report of unparsed rows and unsure hyphens. Runs inside Docker; guesses nothing.
+2. **Review:** a person edits the draft into `content/data/equipment.json`, resolving every report item against the PDF page, writing `text` per FR-038 and adding the fields no column holds (family links, craft references, pack contents). It is then embedded as it stands (FR-096).
+3. **Golden** (FR-072, PR-1): an independent second transcription, made without the draft; a difference is resolved against the PDF, never by choosing a side.
+4. **Data tests** (CI): counts (FR-066), goldens (FR-072), page ranges (FR-006, FR-075), reference integrity (FR-067), pack sums (FR-043, FR-044), heading-versus-table prices (FR-036), quarter-pound weights (FR-015).
+5. **PDF check** (FR-073, PR-2): the only step that reads the PDF after review; it catches an entry that is internally consistent yet not from the SRD. Unit-tested in CI on synthetic text; running it on real text is a process step.
+
+## 6. Interface
+
+No new port, use case, command or domain service. Equipment is read through the existing `Source` port (`Lookup(Key(equipment, id))`, `ListKind(equipment)`), loaded through `LoadSet` and `JSONDecoder`, or served by `BundledSource`; this spec only widens what the decoder accepts (FR-008) and what the bundled set holds. Rule maths (Armor Class, speed penalty, barding, drawn loads, ship repair, crafting, scribing, spellcasting fees) is in `equipment-rules.md`, which depends on this spec.
+
+```go
+// ArmorClassRule is closed: BaseRule | BonusRule (FR-093).
+type ArmorClassRule interface{ /* unexported marker */ }
+type BaseRule struct{ /* base int; dexterity DexterityBonus */ }  // Base() int; Dexterity() DexterityBonus
+// DexterityBonus is closed: FullDexterity | CappedDexterity{maximum} | NoDexterity.
+type BonusRule struct{ /* bonus int */ }                          // FR-024 (a Shield); Bonus() int
+type Armor struct{ /* ... */ }  // StrengthRequirement() (int, bool); StealthDisadvantage() bool
+// CompareCost orders two Costs by value in copper pieces, like cmp.Compare. // FR-011
+func CompareCost(a, b Cost) int
+```
+
+(Signatures are indicative.) Types are synchronous, working on loaded values (architecture.md §4). A lookup finding nothing is the port's not-found variant; bad documents are `Problem`s.
+
+- **Exports:** package `content`: exactly the set of FR-077, each member with a doc comment, and the decoder additions inside `JSONDecoder` only (FR-089); `data.BundledSource` is exported by content-source-port.md. `content/contenttest`: nothing new (FR-097).
+
+## 7. Observability
+
+**Silent by design.** Entry types are domain code (observability.md §3); the decoder is an adapter whose failures `LoadSet` records once (observability.md §7; shared signals and attribute values: shared-types-and-ownership.md FR-041). `BundledSource` decodes the embedded bytes in its constructor and a fault returns a `BundledContentInvalid` error (content-source-port.md FR-059 to FR-061) with no signal, because whole-set validation records none (decoder FR-131). The extraction tool is a developer tool outside the package. This spec defines no signal constant and adds no row to `doc/observability/signals.md`.
+
+1. **What can go wrong?** Bundled data: the embedded document fails to decode (typo, unknown field, unresolved reference) and the constructor returns `BundledContentInvalid`; a transcription differs from the SRD; an entry is not from the SRD; the embedded directory holds a stray file (architecture-guardrails.md FR-078). Host documents: rejected by the decoder, or a `schemaVersion` other than current. A constructor receives an impossible value.
+2. **How would an operator know?** Bundled data: CI data tests (FR-066, FR-072, FR-079) and the PDF check (FR-073) catch it before release; nothing is emitted at run time. Host documents: a rejected `LoadSet` ends its span in error and `srd5e.content.loads` shows `srd5e.outcome=failure` with `srd5e.content.decode_errors` by problem kind. a validation error is a bug the caller sees.
+3. **What is needed to diagnose it?** The `Problem`s (path and kind) in the joined `Problem` error or `BundledContentInvalid.problems` (paths are never attributes); for transcription errors, the failing golden row or PDF-check line naming entry id and page.
+4. **What should be counted or timed?** Nothing new: `entries_loaded` with `srd5e.content.kind=equipment` and the `LoadSet` duration and outcome counters already cover host documents; the bundled set emits no count.
+5. **Is existing instrumentation still correct?** Yes: `equipment` is already a `srd5e.content.kind` value and the problem kinds are unchanged; the revision row must keep the `unsupported_version` meaning in step (decoder FR-006, FR-100).
+6. **What should a consumer monitor?** Any `failure` `LoadSet`, non-zero `decode_errors` and a rise in `problem_kind=unsupported_version` from documents on an older `schemaVersion` (existing guidance). Nothing for the bundled set beyond catching `BundledContentInvalid`.
+7. **Is anything now noisy?** No.
+
+| Signal | Type | Attributes | Purpose | Suggested monitoring |
+|---|---|---|---|---|
+| none defined by this spec | n/a | n/a | n/a | n/a |
+
+## 8. Test plan
+
+Unit tests are `equipment_*_test.go` files of package `content` (`package content_test`). Decoder tests are adapter tests in `decode_equipment_test.go`; data tests over the bundled `equipment.json` are in `content/data/equipment_test.go` (testing.md §3, §10), read through the decoder, and so are never labelled `unit`. Tests of `tools/` live in `tools/` (the pending testing.md §10 amendment is recorded in content-spells.md FR-118, Q8); only they import `tools/` (FR-070). Case tables of section 4 are table-driven, one test per row with per-row requirement and path (testing.md §5): the test name includes the Label (first cell), the requirement is the FR column (or the FR cell of the decoder table), the path is the Path column (decoder table: derived from the expected kind, accepted = happy or boundary, otherwise unhappy), and each `;`-separated case of the decoder table is its own test.
+
+| Id | Level | Notes |
+|---|---|---|
+| FR-001, FR-002, FR-007 | unit | every type implements `Entry` kind `equipment` (`equipment_entry_test.go`); exact `EquipmentCategory` set, exhaustive `switch` without default; mutate each returned slice, assert the next read is unchanged |
+| FR-009 to FR-011, FR-098 | unit | "Coins and Cost value" rows (0, 100,000 GP, equality, `CompareCost`, different-rate and negative a validation error); `Coin` members and `CostRate` |
+| FR-013, FR-014 (types), FR-081, FR-093, FR-095 | unit | `Price` and `WeightSpec` have exactly the named subtypes; exhaustive `switch` over `Price`; type-level check that only the three family types expose `Price`; `ScrollFamily` `CostVaries`/`NoWeight`, `ScrollVariant` `FixedCost`/`NoWeight` with level 0 or 1; closed `ArmorClassRule` and Dexterity subtype sets; gear subtype set is exactly the eight of FR-039 with no magic-item flag |
+| FR-022, FR-024, FR-101 to FR-106 | unit | `ArmorCategory` times as typed values, `DonDoffTime` subtypes; Shield `BonusRule` 2, others `BaseRule`; `WeaponCategory`/`WeaponType` sets; `WeaponFixedDamage(0, ...)` an error, `(1, piercing)` accepted; `PlainUse(thrown)` an error, `RangePair` bounds (normal 0, long equal to normal), copy-on-read; `Armor` and `Weapon` built from synthetic values (absent `strengthRequirement`, `NoWeight` weapon) |
+| FR-107, FR-108, FR-118 | unit (+ contract for FR-118) | every reference field typed `ItemID`, `ItemID.key.kind` is `equipment`; `ToolUtilizeAction` blank description and dc 0, `CraftingOverride` days 0 are a validation error, empty tool list accepted; spell level -1 and 10 a validation error, 0 and 9 accepted on each of the three types, with the decoder rows of FR-057, FR-064, FR-114 |
+| FR-003 | unit | `tools/id_slug_test.go`: "id derivation" rows on the `tools/` slug function. Data: `content/data/ids_test.go` compares golden id strings with bundled ids and the 64-character limit; it does not import `tools/` |
+| FR-038, FR-071, FR-073 | unit | `tools/text_normaliser_test.go` ("Text normalisation"); `extract_equipment_test.go` (determinism, report of an unparsed row and unsure hyphen, no guessed row; synthetic fixtures, not SRD text); `check_equipment_pages_test.go` (match rules a to e, missing name, hyphen-split name, absent group label, common word without its group, exit status) |
+| FR-004, FR-008, FR-012 to FR-014 (wire) | contract (adapter tests) | `decode_equipment_test.go` (decoder): duplicate id within and across arrays; each new array accepted present and empty when absent, unregistered root key `unknownField`, root order, R2-equipment row matches registered arrays, fields and reference sites; `Day`, `Mile`, absent accepted, `Hour` `invalidValue`; each Varies flag with and without its value; `costVaries` on a non-family |
+| FR-029 to FR-031, FR-037 to FR-042, FR-057, FR-064, FR-119 | contract (adapter tests) | `decode_equipment_test.go` (decoder): the case tables "decoder problems of the new kinds" for these FRs; data: both families and 14 variants decode, both Staff entries resolve to `quarterstaff`, five Ammunition rows, seven packs, seven spellcasting rows covering 0 to 9; the closed gear subtype set; FR-119: tool Utilize DCs equal the golden (Thieves' Tools 15, Poisoner's Kit 10), a gear `utilize` field is `unknownField` |
+| FR-067 to FR-069, FR-080, FR-091, FR-094, FR-109 to FR-117 | contract (adapter tests) | `decode_equipment_test.go` (decoder): one test per reference kind and a document that decodes with no `unresolvedReference`; one document with a fault in each new array, all problems in order, decoded twice equal; negative amount, bad coin, negative weight; capacity 0, speed 1.25, HP 0, crew as text; `craftingOverride` on a non-`MagicGear`; the weapon, armor, damage, property, armor class, `toolGroup`, `spellLevel`, `weightNote`/`note`, lifestyle `text` and `craftingOverride` rows. FR-069: the bundled file declares the current `schemaVersion` (other versions are decoder FR-006, FR-007, FR-009) |
+| FR-005, FR-006, FR-015 to FR-021, FR-026 to FR-028, FR-033 to FR-036, FR-043 to FR-049, FR-054 to FR-056, FR-064 (data), FR-066, FR-072, FR-075 | contract (adapter tests) | `content/data/equipment_test.go` (data tests over the bundled `equipment.json`): names equal the golden (`Bottle, Glass`, apostrophes); `source` complete on all 258; multiples of 0.25; 38 weapons, 10/4/18/6; golden comparisons per category; "Weapons: unusual rows"; the seven Thrown weapons' `weaponType`; one mastery each, all eight occur; armor 3/5/4/1 split; seven `stealthDisadvantage` entries; 39 tools, 17/8/14; the five empty Craft lists; 99 gear, 82/16/1, scroll rows counted in the 82; "Gear: unusual rows"; heading prices equal table prices and the Spell Scroll exemption; pack weight sums, five equal cost sums, two documented exceptions and a synthetic pack proving a new difference fails; only the Rowboat has a `Weight`; absent fields asserted absent; `per: Day` on exactly the six Inn Stay rows, Feed per day and Stabling per day; three hirelings; Wretched amount 0; 258 entries and `ListKind` order; page in range and equal to the golden |
+| FR-079, FR-081 (data), FR-082, FR-094 (data), FR-095 (data), FR-096 | contract (adapter tests) | `content/data/load_bundled_test.go`: `BundledSource` over the embedded bytes serves 258 entries, the found variant for each, no problems; the Spell Scroll family and its rows decode as FR-081 states; `grouped_names_test.go`: "Names and ids of grouped rows" (slug function itself in `id_slug_test.go`); Potion of Healing's override against the golden; exactly four magic gear entries; `data.Files()` lists the stem `equipment` with the bytes FR-079 decodes (the embedding, header, README and `NOTICE.md` checks are tested where content-schema-and-decoder.md FR-120 to FR-124, architecture-guardrails.md FR-078, FR-079 and content-licensing-and-notice.md FR-027, FR-029 own them) |
+| FR-070, FR-076 to FR-078, FR-086 to FR-090, FR-097 | architecture | `internal/archtest`: `tools/` not imported by any root-module package or test, no new dependency in the root `go.mod`, draft path check; equipment files import none of `os`, `net`, `telemetry`, no `context`/goroutine/channel, no `contenttest` outside `_test.go`, and nothing from content-magic-items or content-spells (FR-095, FR-118); exported set and unique names (AST scan); one `DamageType`, `WeaponProperty`, `MasteryProperty` declaration; denylist scan over the module, `tools/` and data; decoder additions only in `decode*.go`; no JSON key or `map[string]any` in an exported signature; no contract suite exported from `content` |
+| FR-092 | scenario | `scenarios/equipment_test.go` (`package scenarios_test`), via the public packages `content` and `content/data` only: load the bundled set, Leather Armor (`BaseRule` 11, full Dexterity), Plate Armor (Strength 15) |
+| FR-074 | n/a (process; PR-2, PR-3) | PR-2 and PR-3; the consumer-name scan is FR-088 |
+
+- **Doubles and suites:** none new. Data tests read the embedded bytes through `BundledSource` and `JSONDecoder`; `BundledSource` is covered by content-source-port.md's contract registration. Goldens live under `content/testdata/srd/equipment/` (covered by `NOTICE.md`, architecture-guardrails.md FR-079; Q8).
+- **Mutation testing:** the equipment files of package `content` (value objects: `Cost`, `CompareCost`, `Coin`, closed price and weight types, spell-level checks of FR-118) at least 80 with `gomu` (run only inside Docker with `--cpus` and `--workers` capped at a quarter of the host's processors); the decoder additions in `decode*.go` SHOULD be mutated too; data files are not mutated. The moved rule services carry their own target in equipment-rules.md.
+- **Telemetry tests:** none (section 7).
+- **Not covered in CI:** the PDF check on real text (PR-2) and review steps PR-1, PR-3, because the PDF is not in the repository; the change summary records the run and its (empty) report. FR-073 itself is unit-tested; FR-074 is a process requirement. Every other live FR has an automated test at the level shown.
+
+Deliberately not covered: FR-074 (path n/a, process) - reviewed by a person against the PDF; see PR-2 and PR-3.
+
+## 9. Open questions and decisions
+
+No question is open. Settled decisions, one line each:
+
+| Question | Decision |
+|---|---|
+| Q1. Schema version and who edits the decoder spec | One `schemaVersion`; the decoder spec owns the revision table; this spec requests R2-equipment and claims no number (shared-types-and-ownership.md FR-034, FR-035). |
+| Q2. Thin slice | Data specs never depend on each other; the thin slice's background equipment becomes `ItemID` references later (shared-types-and-ownership.md FR-047). |
+| Q3. Bundling without `os` | Embedded library from `data/` (shared-types-and-ownership.md FR-030 to FR-032; FR-096, FR-079). |
+| Q4, Q7, Q16 | Moved to equipment-rules.md with the rules they concerned (the Shield in "any type of armor", crafting rounding, spell-level a validation error for services). |
+| Q5, Q6 | Not computed or specified, as the SRD does not (section 1, out of scope). |
+| Q8. Goldens as SRD text in tests | Only under `testdata/srd/` (shared-types-and-ownership.md FR-033); the exception to "Cite, do not copy" is FR-072. |
+| Q9. `DamageType` | Owned by `content` (shared-types-and-ownership.md FR-005; FR-078). |
+| Q10. Weapon ammunition type versus the two Bullets entries | Keep the weapon's printed label only (`Bullet`) and do not link it to an entry: the Firearm/Sling choice is inferred, not printed. |
+| Q11. Extraction by tool, by hand or both | Both, with an independent golden and a PDF check (section 5). |
+| Q12. Pack cost sums | Printed price wins; the two differences are fixed in FR-044. |
+| Q13. Families and variants both entries | Yes: gear tables, Craft lists and a Background's "Arcane Focus (Quarterstaff)" name families, so a family must be addressable; the Spell Scroll family is the one entry without a table row. |
+| Q14. Grouped-row names | FR-082. |
+| Q15. `EquipmentId` | None; `ItemID` (shared-types-and-ownership.md FR-005, FR-046; FR-107). |
+| Q17. Spell Scroll family price | `CostVaries` and `NoWeight` (FR-081): keeps the family addressable (Q13) without inventing a price; the alternative `Unpriced` state adds a type for one entry. |
+| Q18. Rule maths location | equipment-rules.md (identity apart from behaviour, shared-types-and-ownership.md FR-006, FR-013); the withdrawn-ids table lists what moved. |
+| Q19. Magic item marker | None (shared-types-and-ownership.md FR-047; FR-095); content-magic-items.md maps ids. |
+| Q20. Weapon and armor decoder rules | Owned here (shared-types-and-ownership.md FR-048); the decoder spec's rows moved here. One residue remains: the decoder spec's R2-equipment row must drop "It extends, not redefines, the baseline `weapons` and `armor`" (section 5). |
+| Q21. Plain `int` spell levels | Deliberate exception (FR-118); equipment-rules.md states the conversion to `SpellLevel`. |
+
+## 10. Changelog impact
+
+Under `Unreleased`:
+
+- **Added:** the bundled SRD 5.2.1 equipment set (258 entries across the twelve tables) as `content/data/equipment.json` embedded directly with `go:embed`, served by `data.BundledSource`, and the twelve entry types (`Weapon`, `Armor`, `Tool`, `AdventuringGear`, `Mount`, ...) with the cost, weight, weapon and armor types they use (`Coin`, `Cost`, ...). The rule services of earlier drafts are entries of equipment-rules.md.
+- **Changed:** a revision row of the content schema (ten root arrays, `cost.per`, `costVaries`, `weightVaries`, `weightNote`, `note`, `gearKind`, `craftingOverride`) lands in the single `schemaVersion` before 0.1.0. `NOTICE.md` covers `content/data/` and `testdata/srd/` (shared-types-and-ownership.md FR-033).
+- **BREAKING:** a document with any `schemaVersion` other than the current one is rejected with `unsupportedVersion` (decoder FR-006), and `ListKind(equipment)` on the bundled source returns 258 entries instead of the earlier, smaller bundle; both are expected before 0.1.0, where a breaking change bumps the minor version. After first release, adding a value to `EquipmentCategory` or a variant to a closed entry family is also **BREAKING**.

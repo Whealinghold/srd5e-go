@@ -1,0 +1,29 @@
+# Go
+*.test
+*.out
+*.exe
+/bin/
+/vendor/
+go.work
+go.work.sum
+
+# Coverage
+coverage/
+coverage.txt
+coverage.html
+*.coverprofile
+
+# Mutation testing scratch (gomu)
+.gomu/
+.gomu_history.json
+mutation-report.json
+
+# Per-developer tool output
+graphify-out/
+.claude/settings.local.json
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store

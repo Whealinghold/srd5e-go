@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.24', stable]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ matrix.go }}
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          # keep in step with README Development; bump deliberately
+          version: v2.15.0
+      - run: set -o pipefail; go test -race -shuffle=on -cover -coverprofile=coverage.txt ./... | tee cover.log
+      - name: coverage threshold (per-package floor)
+        run: make cover-check COVERLOG=cover.log
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.go }}
+          path: coverage.txt
+      - name: go mod tidy
+        run: go mod tidy -diff
+
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: make fuzz-smoke FUZZTIME=10s
+
+  mutation:
+    # See doc/rules/testing.md section 8: Docker only, CPUs and workers capped at 1/4 of nproc.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: gomu (in Docker, capped)
+        run: make mutate
