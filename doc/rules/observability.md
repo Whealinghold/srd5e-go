@@ -264,6 +264,8 @@ Rules:
   `srd5e.d20_test.critical_hit` is `true` or `false` (attack rolls only);
   `srd5e.d20_test.roller_failure` is `unavailable` or `invalid_result`;
   `srd5e.d20_test.forced_failure_reason` is `chosen_to_fail` or `automatic`;
+  `srd5e.content.problem_kind` is the snake_case of a `content.ProblemKind`: `syntax`, `unsupported_version`, `missing_field`, `unknown_field`, `wrong_type`, `out_of_range`, `invalid_value`, `duplicate`, `unresolved_reference` or `constraint_violation`;
+  `srd5e.content.kind` is the snake_case of a registered `content.Kind`: `species`, `background`, `character_class`, `feat`, `equipment`, `spell`, `magic_item` or `monster` (one value is added per kind a revision row registers);
   `error.type` is `<port>_error` from `srderr.ErrorType` for a `*srderr.PortError` (one value per port, for example `dice_roller_error`; [errors-and-results.md](../specs/errors-and-results.md)). Nothing is emitted for other error types; a future non-port error type must first add its own constant to this list and the catalogue. It is set only for an error that left the use case, never for a returned
   failure result. A new value for an existing key is added to this list and to
   the catalogue.
@@ -505,7 +507,7 @@ fully automated; they are enforced in review (§2).
 
 ## Read receipt
 
-RULE-TAG: `observability-23b3c5a3488a`
+RULE-TAG: `observability-c8cd3c1c4df6`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

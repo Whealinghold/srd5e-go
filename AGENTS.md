@@ -141,6 +141,9 @@ srd5e-go/
 ├── telemetry/              # Logger, Tracer, Meter ports, Noop implementations, signal names
 │   ├── telemetrytest/      # recording doubles + contract suite
 │   └── slogtelemetry/      # optional adapter from log/slog to telemetry.Logger
+├── content/                # content context (ports, value objects, Set, decoder)
+│   ├── data/               # embedded SRD JSON (go:embed), created with the first content
+│   └── contenttest/        # FakeSource, FakeDecoder, contract suite
 ├── d20/                    # first bounded context (domain + use case, one package)
 ├── internal/
 │   └── archtest/           # architecture tests (import scan against the allow-list)
@@ -164,7 +167,7 @@ Current and planned contexts (provisional). Allowed dependencies between them
 are the context map in `doc/rules/architecture.md` §2; change it there.
 
 - `d20/`: D20 Tests (ability checks, saving throws, attack rolls), DCs, Advantage and Disadvantage, success and failure resolution (exists)
-- `content/` (planned): species, backgrounds, classes, feats, spells, equipment, monsters, and the content-source ports
+- `content/` (in progress, Phase 2): species, backgrounds, classes, feats, spells, equipment, monsters, and the content-source ports
 - `character/` (planned): abilities, Proficiency Bonus, level, derived stats, spellcasting, equipment rule maths
 - `combat/` (planned): initiative, actions, attacks, conditions, hit points, damage
 - `toolbox/` (planned): Gameplay Toolbox rules; downstream of all the others, nothing depends on it
@@ -181,7 +184,8 @@ just vet        # go vet ./...
 just lint       # golangci-lint run ./...
 just test       # go test -race -shuffle=on -cover ./...
 just arch       # architecture tests
-just check      # what CI runs: gofmt, vet, lint, coverage (cover-check), go mod tidy -diff, arch, fuzz-smoke
+just test-386   # GOARCH=386 go test ./content/... (32-bit integer width, no -race; CI runs it as its own job)
+just check      # what CI runs: gofmt, vet, lint, coverage (cover-check), the 32-bit content tests, go mod tidy -diff, arch, fuzz-smoke
 ```
 
 Mutation testing (`gomu`) is never run on the host. Run it only inside Docker

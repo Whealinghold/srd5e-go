@@ -3,6 +3,7 @@ package archtest
 import (
 	"go/ast"
 	"go/token"
+	"path"
 	"strings"
 )
 
@@ -185,4 +186,75 @@ func embedded(pkgDir string, d *ast.GenDecl, spec *ast.ValueSpec) bool {
 		}
 	}
 	return false
+}
+
+// VocabularyTypes are the closed vocabulary types, the creature space and the
+// typed ids that package content declares exactly once (schema FR-128,
+// FR-130). Adding a vocabulary type to the schema spec adds it here.
+func VocabularyTypes() []string {
+	return []string{
+		"Skill", "DamageType", "CreatureType", "CreatureSize", "CreatureSpace",
+		"ConditionKind", "Language", "RechargeTrigger", "WeaponProperty",
+		"MasteryProperty", "FeatCategory", "HitPointDie", "LightLevel",
+		"DarknessKind", "Obscurement", "SpecialSense", "Alignment", "DurationUnit",
+		"SpeciesID", "BackgroundID", "ClassID", "SubclassID", "FeatID", "SpellID",
+		"ItemID", "MonsterID", "FeatureID", "MagicItemID",
+	}
+}
+
+// vocabularyDecls returns, for each vocabulary type, the violations-to-be: one
+// entry per declaration in a production file, in module order.
+func vocabularyDecls(m Module) map[string][]Violation {
+	want := map[string]bool{}
+	for _, n := range VocabularyTypes() {
+		want[n] = true
+	}
+	found := map[string][]Violation{}
+	for _, pkg := range m.Packages {
+		for _, f := range pkg.Production() {
+			for _, decl := range f.AST.Decls {
+				g, ok := decl.(*ast.GenDecl)
+				if !ok || g.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range g.Specs {
+					ts := spec.(*ast.TypeSpec)
+					if want[ts.Name.Name] {
+						found[ts.Name.Name] = append(found[ts.Name.Name], at(f, ts.Pos(), RuleVocabulary, "%s is declared in package %s; it is declared once, in package content", ts.Name.Name, pkg.Dir))
+					}
+				}
+			}
+		}
+	}
+	return found
+}
+
+// checkVocabulary covers schema FR-128 and FR-130: each vocabulary type is
+// declared at most once in the module's production files, and in package
+// content. A missing declaration is not reported here (fixtures omit them);
+// MissingVocabulary lets a test of the real module require them.
+func checkVocabulary(m Module) []Violation {
+	var vs []Violation
+	found := vocabularyDecls(m)
+	for _, name := range VocabularyTypes() {
+		for i, v := range found[name] {
+			if i > 0 || path.Dir(v.File) != "content" {
+				vs = append(vs, v)
+			}
+		}
+	}
+	return vs
+}
+
+// MissingVocabulary returns the vocabulary types that have no declaration in
+// the module's production files. The real module has none missing.
+func MissingVocabulary(m Module) []string {
+	var missing []string
+	found := vocabularyDecls(m)
+	for _, n := range VocabularyTypes() {
+		if len(found[n]) == 0 {
+			missing = append(missing, n)
+		}
+	}
+	return missing
 }

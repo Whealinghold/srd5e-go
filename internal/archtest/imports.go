@@ -1,7 +1,9 @@
 package archtest
 
 import (
+	"go/ast"
 	"go/token"
+	"path"
 	"slices"
 	"strings"
 )
@@ -96,6 +98,82 @@ func checkCycles(m Module) []Violation {
 	for _, pkg := range m.Packages {
 		if state[pkg.Dir] == 0 {
 			visit(pkg.Dir, nil)
+		}
+	}
+	return vs
+}
+
+// identityFiles are the files of package content that hold the identity types
+// (schema FR-148); the list and the ban below change together with that spec.
+func identityFiles() []string {
+	return []string{"kind.go", "id.go", "key.go", "entry.go", "missing_content.go"}
+}
+
+// checkIdentityFiles covers schema FR-148: the identity files of package
+// content import only the standard library (not context) and srderr, and never
+// name PortError.
+func checkIdentityFiles(m Module, pkg Package) []Violation {
+	if pkg.Dir != "content" {
+		return nil
+	}
+	var vs []Violation
+	for _, f := range pkg.Production() {
+		if !slices.Contains(identityFiles(), path.Base(f.Path)) {
+			continue
+		}
+		for _, imp := range f.Imports() {
+			rel, local := m.Local(imp.Path)
+			switch {
+			case local && rel == "srderr":
+			case local, imp.Path == "context":
+				vs = append(vs, at(f, imp.Pos, RuleIdentity, "identity file imports %q; only the standard library (not context) and srderr are allowed", imp.Path))
+			}
+		}
+		ast.Inspect(f.AST, func(n ast.Node) bool {
+			if id, ok := n.(*ast.Ident); ok && id.Name == "PortError" {
+				vs = append(vs, at(f, id.Pos(), RuleIdentity, "identity file refers to PortError"))
+			}
+			return true
+		})
+	}
+	return vs
+}
+
+// sourceValueFiles are the files of package content that hold the value types
+// of the Source port (source-port FR-033): the lookup result, the query and the
+// catalogue.
+func sourceValueFiles() []string {
+	return []string{"lookup_result.go", "query.go", "catalogue.go"}
+}
+
+// checkSourceFiles covers source-port FR-033 and FR-049: the value-type files
+// of package content import none of context, embed, testing, content/contenttest
+// or content/data and never name PortError, and contenttest/fake_source.go
+// imports only package content from this module.
+func checkSourceFiles(m Module, pkg Package) []Violation {
+	var vs []Violation
+	for _, f := range pkg.Production() {
+		base := path.Base(f.Path)
+		switch {
+		case pkg.Dir == "content" && slices.Contains(sourceValueFiles(), base):
+			for _, imp := range f.Imports() {
+				rel, local := m.Local(imp.Path)
+				if slices.Contains([]string{"context", "embed", "testing"}, imp.Path) || local && (rel == "content/contenttest" || rel == "content/data") {
+					vs = append(vs, at(f, imp.Pos, RuleSourceFiles, "source value-type file imports %q; it must not import context, embed, testing, contenttest or data", imp.Path))
+				}
+			}
+			ast.Inspect(f.AST, func(n ast.Node) bool {
+				if id, ok := n.(*ast.Ident); ok && id.Name == "PortError" {
+					vs = append(vs, at(f, id.Pos(), RuleSourceFiles, "source value-type file refers to PortError"))
+				}
+				return true
+			})
+		case pkg.Dir == "content/contenttest" && base == "fake_source.go":
+			for _, imp := range f.Imports() {
+				if rel, local := m.Local(imp.Path); local && rel != "content" {
+					vs = append(vs, at(f, imp.Pos, RuleSourceFiles, "fake_source.go imports %q; only package content and the standard library are allowed", imp.Path))
+				}
+			}
 		}
 	}
 	return vs

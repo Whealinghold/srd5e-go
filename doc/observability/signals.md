@@ -42,3 +42,26 @@ Go names: constants in package `d20` (`signals.go`); entry point
 `error.type` is `srderr.ErrorType` of the error that left the use case:
 `<port>_error` for `*srderr.PortError`, so a roller failure is
 `dice_roller_error`.
+
+## content
+
+Go names: constants in package `content` (`signals.go`); entry point
+`content.Loader.LoadSet(ctx, ...)`. `JSONDecoder`, `ValidateSet` and the domain
+types are silent: `ValidateSet` (cross-document `duplicate`,
+`unresolved_reference` and `constraint_violation` problems) reaches no signal, so
+a consumer must read the error it returns. A cancelled `ctx` is returned before
+any signal and counted nowhere. Document bytes, paths, ids, names and text never
+enter an attribute, and a recovered decoder panic value never reaches a span.
+
+| Name | Go constant | Type | Unit | Attributes | Emitted by | Purpose | Suggested monitoring |
+|---|---|---|---|---|---|---|---|
+| `srd5e.content.load` | `content.SpanLoad` | Span | | `srd5e.outcome` (`success`, `failure`); error status when the document is rejected or the decoder fails; the decoder failure is recorded on it as an error whose text is only the error type | `content.Loader.LoadSet` | Trace one document load | Inspect error-status spans when `loads` shows a failure. Overlaps `loads` and `decode_errors`; alert on those, not on span errors |
+| `srd5e.content.decode` | `content.SpanDecode` | Span (child of `srd5e.content.load`) | | `srd5e.outcome` (`success`, `failure`); error status as the parent | `content.Loader.LoadSet` | The step that calls the `Decoder` port, separate from the surrounding bookkeeping | Duration against document size; a slow decode with a small document points at the decoder adapter |
+| `srd5e.content.loads` | `content.MetricLoads` | Counter | `{load}` | `srd5e.outcome` (`success`, `failure`), `error.type` (`content_error`; only when the decoder failed as a port) | `content.Loader.LoadSet` | Loads attempted and how they ended; a rejected document is `failure` without `error.type`, a decoder that panicked or broke its contract is `failure` with `error.type` | Alert on any `failure` for shipped (bundled) content; alert on any `error.type=content_error` (a decoder bug or contract breach, file a bug). A rise in `failure` without `error.type` for host content is bad documents, read `decode_errors` for why |
+| `srd5e.content.decode_errors` | `content.MetricDecodeErrors` | Counter | `{problem}` | `srd5e.content.problem_kind` (`syntax`, `unsupported_version`, `missing_field`, `unknown_field`, `wrong_type`, `out_of_range`, `invalid_value`, `duplicate`, `unresolved_reference`, `constraint_violation`) | `content.Loader.LoadSet` | Problems of rejected documents, added once per kind with that kind's count (not once per problem); never `error.type`. A list cut at `MaxProblems` counts its final truncation problem as `out_of_range` | Alert when non-zero for shipped content. A rise in `unsupported_version` means a stale consumer document; `out_of_range` at the size cap or the truncation problem means a hostile or runaway document. `duplicate` and `unresolved_reference` from `ValidateSet` are never counted here |
+| `srd5e.content.entries_loaded` | `content.MetricEntriesLoaded` | Counter | `{entry}` | `srd5e.content.kind` (`species`, `background`, `character_class`, `feat`, `equipment`, `spell`, `magic_item`, `monster`; a value is added per kind a revision row registers) | `content.Loader.LoadSet` | Volume of a loaded document by kind; a kind with no entries gets no measurement (never a zero add) | Compare per-kind counts across releases of the same content; a drop to nothing for a kind that had entries means a document lost its array |
+| `srd5e.content.load_duration` | `content.MetricLoadDuration` | Histogram | `s` | none (the outcome is not known when the timer starts) | `content.Loader.LoadSet` | Time of one load through the injected clock, port failures included | p95 regression against the previous release for the same document; expect milliseconds for the bundled slice |
+
+`error.type` is `srderr.ErrorType` of the error that left the use case: `content_error`
+for a `*srderr.PortError` of the `content` port, which here means the decoder
+panicked or returned an error that holds no problem.

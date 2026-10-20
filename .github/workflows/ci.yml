@@ -37,6 +37,17 @@ jobs:
       - name: go mod tidy
         run: go mod tidy -diff
 
+  test-386:
+    # Integer width differs between platforms; the decoder must give one result on both
+    # (content schema FR-021, FR-099). No -race: the race detector needs a 64-bit target.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - run: GOARCH=386 go test ./content/...
+
   fuzz:
     runs-on: ubuntu-latest
     steps:

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `content` |
 | Roadmap phase | 0 |
 | Depends on | `shared-types-and-ownership.md` |
@@ -380,6 +380,11 @@ FR-002 and FR-005) are met in those specs.
   and FR-017's "is this a Wizards logo" question (the extension scan is the
   mechanical stand-in). The embedded-data layout check is shared-types-and-ownership.md
   FR-032's.
+
+**Implementation status.**
+
+- Done (Phase 2, step 6): the content of the covered files for the first bundled data: `NOTICE.md` (Scope naming only `content/data/` and the SRD pages the bundled content comes from, no status line, the statement of the SRD's "Legal Information" page copied from the PDF with its typographic quotes, Changes with `restructured`, the non-endorsement sentence, MIT named for the code only: FR-001, FR-002, FR-005 to FR-007, FR-011 to FR-013, FR-015, FR-035), the attribution statement in `README.md` (FR-028), the two-line header on the one Go file of `content/data` (FR-029, FR-037) and `content/data/testdata/srd/README.md` with the attribution pointer (FR-027). `internal/archtest` checks A12 (embed confinement, layout, the covered paths of `NOTICE.md`) are live and no longer vacuous.
+- Not yet implemented: the mechanical `CLN-FR-*` checks of this spec (statement containment and uniqueness, the denylist scans, FR-004, FR-016 to FR-019, FR-024, the README and header scans of FR-027 to FR-029 and FR-037, FR-031, FR-038): they are the guardrails harness's (architecture-guardrails.md); this step only made the files comply.
 
 ## 9. Open questions and decisions
 

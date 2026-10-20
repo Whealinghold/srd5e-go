@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `content` |
 | Roadmap phase | Types 2; bulk data 5 |
 | Depends on | `dice-and-rolls.md`, `ability-scores.md`, `content-schema-and-decoder.md` |
@@ -226,7 +226,7 @@ imports nothing from `character` (FR-041).
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-022 | `SpellEffectModel` MUST answer `SpellEffectFacts` with these facts, each an `EffectFact` (`FactKnown{Value}` or `FactUnknown`): `ForcesSavingThrow`, `MakesSpellAttackRoll`, `DealsDamage`, `DamageTypes` (a set of `DamageType`) and `CanTargetMoreWithHigherSlot` (true when the targets' count has a `PerSlotLevelCount`). More instances (darts, rays) are not additional targets for this fact. | SRD 5.2.1, "Effects", p. 106; consumers of these facts: class-sorcerer.md `MetamagicSpellFacts`, class-wizard.md `WizardSpellFacts.DealsDamage` and class-warlock.md `CantripFacts` (its FR-156, table 4.6.8). Ownership: `SpellEffectFacts` is the authoritative definition of these five facts (shared-types-and-ownership.md FR-048); the consumers change to read it (RA-1) | happy |
+| FR-022 | `SpellEffectModel` MUST answer `SpellEffectFacts` with these facts, each an `EffectFact` (`FactKnown{Value}`, `FactKnownDamageTypes` for the `DamageTypes` set, or `FactUnknown`): `ForcesSavingThrow`, `MakesSpellAttackRoll`, `DealsDamage`, `DamageTypes` (a set of `DamageType`) and `CanTargetMoreWithHigherSlot` (true when the targets' count has a `PerSlotLevelCount`). More instances (darts, rays) are not additional targets for this fact. | SRD 5.2.1, "Effects", p. 106; consumers of these facts: class-sorcerer.md `MetamagicSpellFacts`, class-wizard.md `WizardSpellFacts.DealsDamage` and class-warlock.md `CantripFacts` (its FR-156, table 4.6.8). Ownership: `SpellEffectFacts` is the authoritative definition of these five facts (shared-types-and-ownership.md FR-048); the consumers change to read it (RA-1) | happy |
 | FR-023 | A fact is `FactKnown{true}` when the modelled parts show it, in any coverage. `FactKnown{false}` and `DamageTypes` are known only when the coverage is `complete`; with `partial` coverage they MUST be `FactUnknown`, because the text may hold what the model leaves out. See table F. | SRD 5.2.1, "Effects", p. 106; `AGENTS.md` (never guess content) | unhappy (rule interaction) |
 | FR-024 | `TextOnlyEffects` MUST answer `FactUnknown` for every fact. A consumer MUST NOT read "unknown" as "no". | `AGENTS.md`, "Licensing and source material"; class-sorcerer.md (a missing fact gives `SpellFactUnknown`, not a guess) | unhappy (missing content) |
 
@@ -475,7 +475,8 @@ All immutable (unexported fields where invariants exist, value receivers, no set
   extra)`, `ByCharacterLevelCount(CharacterLevelTable<int>)`. `AmountStep(extraDice,
   extraFlat)`. `AmountLevelTable` and `CountLevelTable` (entries of level and value; both are thin wrappers over one unexported generic helper, so no exported type is generic, `doc/rules/go.md` §6).
 - **Facts.** `SpellEffectFacts`, `EffectFact` (closed: `FactKnown{Value}`,
-  `FactUnknown`).
+  `FactKnownDamageTypes{Types}`, `FactUnknown`; no generic variant carries both a
+  boolean and a set, so the set has its own variant).
 - **Zone facts** (FR-048): `ZoneFacts`, `ZoneRuleFact`, `ZoneTrigger`,
   `ZoneTargetScope`, `ZoneMobility` (`StationaryZone`, `MovesWithOrigin`,
   `MovedByCaster`, `DriftsAtTurnStart`), `ZoneActionKind`, `DriftDirectionRule`,
@@ -506,14 +507,67 @@ content-source-port.md; the caller resolves the `Spell` and hands it to
   and the character level as plain integers (FR-041); `AmountLevelTable.ValueAt(level)` and `CountLevelTable.ValueAt(level)`
   (FR-018).
 - **JSON.** The spell object gains the optional `effects` field (FR-030). The
-  variant-selection and key conventions are those of content-schema-and-decoder.md
-  and are not restated here; every problem carries a path and a kind (FR-031).
+  variant-selection and key conventions are those of content-schema-and-decoder.md;
+  the shape of the effects object is section 6.1; every problem carries a path and a kind (FR-031).
 - **Exports.** Package `content` exports the
   section 5.2 types, including `SelfTargetPolicy`, each with a godoc comment starting with its name.
   Every exported name is unique across the module's packages, none is a generic variant
   name (`Applied`, `Rejected`, `Succeeded`, `ContentMissing`, `Found`,
   `NotFound`), and none refers to a consuming project
   (shared-types-and-ownership.md FR-017, FR-021).
+
+### 6.1 JSON shape of the effects object (normative; FR-030 to FR-032, FR-049)
+
+The `effects` key of the spell object is optional by absence and, present, holds one
+`ModelledEffects` object. `TextOnlyEffects` is written by omitting the key (an
+`effects` of `null` or `{}` is `wrongType` or `missingField`, never text-only). Each
+variant is an object with a string `kind`, the lower camel case of the variant name; a
+missing, non-string or unknown `kind` is the only problem of that object. Keys are read
+in the order listed (the order problems are reported). `?` is optional by absence. An
+integer is read as everywhere (schema FR-021) and is at most 2^31 - 1 (`outOfRange`
+above), so a decoded value is the same on every platform integer width. Wire spellings of
+a closed set are the `String()` of its members (`ParseX`, exact and case-sensitive);
+`DamageType`, `CreatureType`, `ConditionKind` and `DurationUnit` keep their schema
+spelling.
+
+| Object | Keys | Rules |
+|---|---|---|
+| effects | `coverage`, `targeting`, `parts`, `zone?` | `coverage`: `complete`, `partial`. `parts`: array of at least 1 part. |
+| targeting | `kind`: `targetsSelf`, `targetsChosen`, `targetsInArea` | `targetsChosen`: `subject`, `count`, `restriction?`, `selfPolicy?`. `targetsInArea`: `shape`, `subject`, `restriction?`. `subject`: `creature`, `object`, `creatureOrObject`. `selfPolicy` absent is `mayIncludeCaster` (FR-040). A restriction on an `object` subject is `constraintViolation` at `restriction` (FR-015). |
+| count | `kind`: `exactlyTargets`, `upToTargets`, `targetsByInstance` | The first two: `n` (at least 1), `scaling?` (a count scaling). |
+| restriction | `kind`: `anyCreatureType`, `onlyCreatureTypes` | `onlyCreatureTypes`: `types`, a set of at least 1 `CreatureType`. |
+| shape | `kind`: `coneArea` (`lengthFeet`), `cubeArea` (`sideFeet`), `cylinderArea` (`radiusFeet`, `heightFeet`), `emanationArea` (`distanceFeet`), `lineArea` (`lengthFeet`, `widthFeet`), `sphereArea` (`radiusFeet`) | Each dimension an integer of at least 1. |
+| count scaling | `kind`: `noCountScaling`, `perSlotLevelCount`, `byCharacterLevelCount` | `perSlotLevelCount`: `aboveLevel`, `extra` (at least 1). `byCharacterLevelCount`: `entries`, each `{level, count}`. |
+| amount scaling | `kind`: `noAmountScaling`, `perSlotLevelAmount`, `byCharacterLevelAmount` | `perSlotLevelAmount`: `aboveLevel`, `extraDice?`, `extraFlat?` (each at least 0, absent is 0; both 0 is `outOfRange` at the scaling). `byCharacterLevelAmount`: `entries`, each `{level, value}` with `value` an amount base. Entries: at least 1, `level` 1 to 20 (`outOfRange` otherwise), first level 1 and strictly ascending (`constraintViolation` at `entries`, FR-019). |
+| part | `resolution`, `instances?` | `instances`: `{base, scaling?}`, `base` at least 1 with a count scaling; absent is one instance with no scaling. |
+| resolution | `kind`: `attackRollResolution` (`attack`, `onHit`, `onMiss?`), `savingThrowResolution` (`save`, `onFailure`, `onSuccess`), `automaticResolution` (`outcomes`) | `attack`: `melee`, `ranged`. `save`: an ability name as the class rows write it (`strength` ... `charisma`). `onSuccess`: `nothingOnSuccess`, `halfDamageOnSuccess` (with no damage outcome: `constraintViolation` at `onSuccess`, FR-043). Outcome lists have at least 1 element, except `onMiss`, which may be empty. |
+| outcome | `kind`: `spellDealsDamage` (`amount`, `damageType`, `addsModifier?`), `spellRestoresHitPoints`, `spellGrantsTemporaryHitPoints` (`amount`, `addsModifier?`), `spellAppliesCondition` (`condition`, `duration`) | `addsModifier`: `none`, `spellcastingAbilityModifier`; absent is `none`. `condition`: a `ConditionKind` spelling. More than one `chosenDamageType` in the model is `constraintViolation` at `parts` (FR-045). |
+| amount | `base`, `scaling?` | `base`: `{kind: rolledSpellAmount, roll}` (dice notation exactly as `dice.Expression.Notation` prints it, a modifier allowed: `1d4+1`) or `{kind: fixedSpellAmount, value}` (at least 1). A step that adds dice to a fixed base is `constraintViolation` at `scaling` (FR-016). |
+| damageType | `kind`: `fixedDamageType` (`type`), `chosenDamageType` (`types`) | `types`: a set of at least 2 `DamageType`s (`outOfRange` below). |
+| duration (of a condition) | `kind`: `forSpellDuration`, `timedConditionDuration` (`amount` at least 1, `unit`), `untilNextTurnBoundary` (`owner`, `boundary`) | `owner`: `caster`, `target`. `boundary`: `start`, `end`. |
+| zone | `rules`, `mobility?`, `oncePerTurn?`, `designation?`, `damageBudget?`, `stopsMoverOnContact?`, `movement?` | `rules`: at least 1; a repeat of an identical rule is `duplicate` at the later index. `designation`: `none`, `atCastingOnly`. Absent booleans are false. |
+| zone rule | `trigger`, `partIndex`, `scope`, `region?`, `unitFeet?`, `casterChoice?` | `trigger`, `scope`: the `ZoneTrigger` and `ZoneTargetScope` spellings. `partIndex` outside the parts of the model is `constraintViolation` (checked when every part decoded). `region` follows the name rule (schema FR-027); absent is `body`. |
+| zone mobility | `kind`: `stationaryZone`, `movesWithOrigin`, `movedByCaster` (`maxFeet`, `action`, `laterTurnsOnly?`), `driftsAtTurnStart` (`feet`, `direction`) | Numbers at least 1. `action`: `bonusAction`, `magicAction`, `withCasterMovement`. `direction`: `awayFromCaster`, `awayFromCasterChosen`. |
+| zone movement | `difficultTerrain?`, `speedHalved?`, `extraFeetPerFoot?` | `extraFeetPerFoot` at least 0; absent is 0. |
+
+**Key presence of the zero-for-absent fields (FR-049).** `ZoneFacts.DamageBudget` and
+`ZoneRuleFact.UnitFeet` hold 0 for absent, so the constructors cannot tell an absent key
+from a zero. The decoder decides by the key: a `damageBudget` or `unitFeet` key that is
+present holds an integer of at least 1 (0 and below are `outOfRange`), and an absent key is
+0. `unitFeet` is then required exactly for `travelsWithin` (`constraintViolation` at the
+`unitFeet` key when missing there or present on another trigger). The agreement test of
+FR-032 therefore lists a present zero as the one documented divergence from the
+constructors, which read a 0 field as absent. `extraFeetPerFoot` has no such ambiguity (0
+is the stated "none") and accepts a present 0.
+
+**Where a rule across fields is reported.** A rule the decoder leaves to the constructor
+or to `SpellEffectModel.CheckSpellLevel` is reported with the kind of the constructor's
+`BlockProblem` (`outOfRange` for `BlockEmpty` and `BlockOutOfRange`, `duplicate`,
+`constraintViolation` for `BlockConstraint` and `BlockRaggedRow`, `missingField`,
+`invalidValue` otherwise) at the key or object the paragraph above names, else at the
+object that holds the values. A scaling that contradicts the spell's level (FR-009) is
+`constraintViolation` at the `effects` key of the spell, reported only when the effects
+and the level decoded cleanly.
 
 ## 7. Observability
 
@@ -555,6 +609,20 @@ Silent by design: the model is pure data and queries, so it emits nothing
   scenario (no use case); the cast-and-resolve scenario is in `spell-effects.md`.
 - **Mutation testing (`doc/rules/testing.md` §8):** the model files (the effect types) at a score of at least 80 using `gomu`, run only inside Docker with `--cpus` and `--workers` capped at a quarter of the host processors (most worth: the step count in FR-016, table selection in FR-018, level bounds in FR-019).
 - **Every FR id appears above or below.** Deliberately not covered: FR-038 - the human review record is a process requirement, checked in review.
+
+**Implementation status.**
+
+- Done (Phase 2, step 5f, package `content`, files `spell_effects.go`, `spell_effects_enums.go`, `spell_effects_targeting.go`, `spell_effects_area.go`, `spell_effects_count.go`, `spell_effects_amount.go`, `spell_effects_table.go`, `spell_effects_part.go`, `spell_effects_outcome.go`, `spell_effects_facts.go`, `spell_effects_zone.go`): the closed `SpellEffectModel` (`TextOnlyEffects`, `ModelledEffects` with `NewModelledEffects`, `WithZoneFacts`, `Equal`, `Facts`, `CheckSpellLevel`), `EffectCoverage`, `SpellTargeting` (`TargetsSelf`, `TargetsChosen`, `TargetsInArea`), `TargetSubject`, `SelfTargetPolicy`, `TargetCount` (`ExactlyTargets`, `UpToTargets`, `TargetsByInstance`), `CreatureTypeRestriction` (`AnyCreatureType`, `OnlyCreatureTypes`), `AreaShape` and its six shapes, `SpellEffectPart`, `PartResolution` (`AttackRollResolution`, `SavingThrowResolution`, `AutomaticResolution`), `SpellAttackKind`, `SuccessEffect`, `PartInstances`, `SpellOutcome` (the four variants), `ModifierAddition`, `DamageTypeSelection` (`FixedDamageType`, `ChosenDamageType`), `ConditionDuration` (`ForSpellDuration`, `TimedConditionDuration`, `UntilNextTurnBoundary`), `TurnOwner`, `TurnBoundary`, `SpellAmount` (`RolledSpellAmount`, `FixedSpellAmount`), `ScalableAmount`, `AmountStep`, `AmountScaling` and `CountScaling` with their variants, `AmountLevelTable`, `CountLevelTable`, `SpellEffectFacts`, `EffectFact`, and the zone facts (`ZoneFacts`, `ZoneRuleFact`, `ZoneTrigger`, `ZoneTargetScope`, `ZoneMobility` and its four variants, `ZoneActionKind`, `DriftDirectionRule`, `ZoneRegionID`, `DesignationPolicy`, `ZoneMovementFacts`). Tested on synthetic and pilot-shaped models: FR-001 (the model; `Spell.effects` itself is step 5g), FR-002 and FR-039 (an architecture test in `internal/archtest/spell_effects_model_test.go`, with a violating overlay for the rule itself), FR-004 to FR-029, FR-040 to FR-048 and the constructor half of FR-049. Every constructor error is a `*BlockError` (reasons `BlockEmpty`, `BlockOutOfRange`, `BlockConstraint`, `BlockDuplicate`, `BlockInvalidMember`, `BlockMissing`, `BlockInvalidName`), which maps one to one to the decoder kinds of FR-031.
+- Done (Phase 2, step 5g, package `content`, files `spell_effects_parse.go`, `decode_spell_effects.go`, `spell.go`): FR-030 to FR-032, the decoder key `effects` of the spell object with the wire shape of section 6.1 (every variant of targeting, restriction, area shape, count, scaling, resolution, outcome, amount, damage type, condition duration and zone read; the problem kinds of FR-031 at the paths the table in 6.1 names), the `ParseX` of the thirteen small closed sets (`ParseEffectCoverage` ... `ParseDesignationPolicy`), `FuzzDecodeSpellEffects`, the table-driven agreement test `TestAgreementSpellEffects` (FR-032), the decoder half of FR-049 (`outOfRange` for an empty rule list and for a unit, `MaxFeet`, `Feet` or budget below 1 and an `ExtraFeetPerFoot` below 0, `constraintViolation` for `UnitFeet` missing on `TravelsWithin` or present elsewhere and for a `PartIndex` outside the parts, `duplicate` for a repeated rule), `Spell.effects` with `Spell.Equal` over it (FR-001, FR-003) and the call of `CheckSpellLevel` by `NewSpell` (FR-009). Choices the spec left open: the shape of section 6.1 (discriminators are the lower camel case of the full variant names; `selfPolicy` absent is `mayIncludeCaster`; `instances` absent is one instance; `addsModifier` absent is `none`; `extraDice` and `extraFlat` absent are 0); key presence of the zero-for-absent fields (section 6.1, FR-049: a present `damageBudget` or `unitFeet` of 0 is `outOfRange`); integers are at most 2^31 - 1 in the decoder; `PartIndex` is range-checked only when every part decoded; the level check of FR-009 is reported at the `effects` key and only when the effects and the level decoded.
+- Choices the spec left open: the package never imports `Spell` (the 5g constructor calls `CheckSpellLevel`). Scaled values are queried with `ScalableAmount.At(slotLevelsAbove, characterLevel)`, `ExactlyTargets.At`, `UpToTargets.At`, `PartInstances.At` and `AmountLevelTable.ValueAt` / `CountLevelTable.ValueAt`; each input is validated only by the scaling that reads it, and a result past the dice limits or `int` is `BlockOutOfRange`, never wrapped around. `AboveLevel` is stored as given (any integer); only `CheckSpellLevel` judges it, so an `AboveLevel` of 10 can be built and is then rejected there (FR-009). The two level tables are arrays behind one unexported generic helper, so every amount, count, scaling and outcome is comparable with `==`; the types that hold slices (`AttackRollResolution`, `SavingThrowResolution`, `AutomaticResolution`, `SpellEffectPart`, `ModelledEffects`, `ZoneFacts`) have `Equal`, with the rule set of a zone compared as a set. The two sets (`OnlyCreatureTypes`, `ChosenDamageType`) are bit sets, so they are comparable and order-insensitive. `SuccessEffect` and `ModifierAddition` are typed enums, not variant structs. A nil `CreatureTypeRestriction`, `CountScaling`, `AmountScaling` and `ZoneMobility` read as `AnyCreatureType`, `NoCountScaling`, `NoAmountScaling` and `StationaryZone`, and a zero `DesignationPolicy` reads as `NoDesignation` and an empty `ZoneRegionID` as `body`. `EffectFact` has a third variant `FactKnownDamageTypes` for the `DamageTypes` set (the spec's single `FactKnown{Value}` cannot carry a set without `any`); the zero `SpellEffectFacts` answers `FactUnknown` throughout. `ZoneFacts.DamageBudget` and `ZoneRuleFact.UnitFeet` are 0 when absent, so the decoder reads a missing key as 0; `UnitFeet` missing on `TravelsWithin` or present on another trigger is `BlockConstraint`, a negative one `BlockOutOfRange`. The constructors with several optional members take a keyed fields struct (`ZoneRuleFields`, `ZoneFactsFields`). Wire spellings are the lower camel case names returned by `String()`.
+- Mutation status (`just mutate "./content/<file>.go"`, one file at a time, capped at a quarter of the processors): `spell_effects.go` 93.3 (re-run 2026-10-20, 6 survivors), `spell_effects_table.go` 92.5, `spell_effects_amount.go` 89.9, `spell_effects_count.go` 86.0, `spell_effects_targeting.go` 93.4 (re-run 2026-10-20, 7 survivors), `spell_effects_area.go` 100.0, `spell_effects_part.go` 93.7, `spell_effects_outcome.go` 96.6, `spell_effects_facts.go` 95.2, `spell_effects_zone.go` 91.7 (a partial run: the 10 minute limit of the foreground command ended it with the last of its 151 mutants unreported). `spell_effects_enums.go` holds only name lists and `Valid` / `String` methods through the shared `enumValid` and `enumString`.
+- Manual-mutation pass (2026-10-20) for the four files with no same-named test (`spell_effects_enums.go`, `spell_effects_parse.go`, `spell_effects_facts.go`, `spell_effects_table.go`): 44 distinct mutations (name-list swaps, off-by-ones, flipped comparisons, dropped branches), each applied alone against `go test ./content`. 42 caught; 2 survived in `spell_effects_facts.go` (a chosen damage-type set overwriting a fixed type, and `UpToTargets` per-slot scaling ignored) and `TestDerivedFactsUnionAndUpToTargets` now kills both; 1 further mutation did not compile and was dropped. No equivalent survivors.
+- Manual-mutation pass (2026-10-20) for `spell_effects_area.go` and `spell_effects_count.go` (no same-named test): 21 + 23 distinct mutations against `go test ./content`. Survivors killed by new tests (`TestZeroAreaShapesAreRejected`, `TestUnscaledCountOfOneAndZeroUpToTargets`): zeroed shape dimensions in `checkAreaShape`, `base <= 1` in `scaledCount`, `UpToTargets{}` in `checkTargetCount`. Equivalent survivors: `v.height`/`v.width` in `checkAreaShape` and `v.scaling` in `checkTargetCount` (a value with one valid and one zero field cannot be built outside the package); swapped `slotLevelsAbove`/`extra` in `mulAdd` (the overflow test `n > max/extra` is symmetric). Two mutations did not compile and were dropped.
+- Mutation pass 2026-10-20 (spell effects 3): `spell_effects_outcome.go` 98.3 (gomu, 1 survivor, not identified: the per-file run prints only the score), `spell_effects_zone.go` 91.0 (gomu, 13 survivors, none yet analysed; above 80). `spell_effects_part.go` and `spell_effects_amount.go` have no same-named test, so 33 + 27 manual mutations ran against `go test ./content`. Survivors killed by `spell_effects_part_test.go` (`TestResolutionsOwnTheirOutcomes`, `TestResolutionEquality`, `TestSpellEffectPartEquality`, `TestScalingArithmeticLimits`): dropped outcome-list copies in constructors and getters, the `onHit`/`onMiss`/`onFailure` comparisons in `Equal`, and the `okDice || okMod`, `>=` and `max(base, 0)` mutations in `mulAdd`/`grow`. Equivalent survivors in `spell_effects_part.go`: `return true` for `o.resolution == nil` in `SpellEffectPart.Equal` (a part with a resolution always has non-zero instances, so a zero part differs earlier), and dropping the clones in `cloneResolution` and `Resolution()` (every resolution getter copies and the fields are private, so no caller can reach the shared slices). Three mutations of `NewScalableAmount`/`NewPerSlotLevelAmount` and one of `NewSpellEffectPart` did not compile.
+- Mutation pass 2026-10-20 (spell effects 4): `decode_spell_effects.go` has no same-named test, so 23 manual mutations ran against `go test ./content` (blockKind case, selfPolicy default, count kind and absence, scaling `aboveLevel` lower bounds, addsModifier default, roll notation round trip, partIndex bounds, unitFeet rule, duplicate rule, damageBudget minimum, part clean flag, table level maximum, optional onMiss, damage type validity, set minimums, step and movement minimums, laterTurnsOnly). Survivors killed by new rows `negative scaling level` and `negative amount scaling level` in `TestDecodeSpellEffectsProblems` and by `TestDecodeSpellAttackWithoutOnMiss`. Equivalent survivors: `clean || err == nil` in `decodeRestriction` and `hasZone || zoneOK` in `decodeSpellEffects` (the caller drops the value whenever a problem was recorded, and `zoneOK` implies `hasZone`).
+
+Not yet implemented: FR-033 to FR-038 (the bundle checks and the pilot annotations, Phase 5), the bundle verification half of FR-049 and FR-050 (the numbers against the spell text, and the table Z fixtures), and the mutation score of the 5g files.
+
 
 ## 9. Open questions and decisions
 

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `content` |
 | Roadmap phase | 2 |
 | Depends on | `errors-and-results.md`, `content-schema-and-decoder.md` |
@@ -394,6 +394,17 @@ Tests are table-driven with `t.Run` and `t.Parallel` where safe; external test p
 - **Telemetry tests:** none (nothing emitted); use-case specs assert the failure is recorded once.
 - **Not covered:** only the SRD-only fixture rule in FR-034 (review item). Real-backend adapters are
   consumers' responsibility (FR-050).
+
+**Implementation status.**
+
+- Done (Phase 2, step 3, packages `content` and `content/contenttest`): `Source`, `Port`, `LookupResult` (`LookupFound`, `LookupNotFound`), `Query` (`LookupQuery`, `ListKindQuery`), `Catalogue`, `DuplicateKeyError`, `SourceError` and `InMemorySource` (FR-007 to FR-031, FR-033, FR-037 to FR-039, FR-041 to FR-044, FR-046, FR-049 to FR-051, FR-057); `FakeSource`, `RunSourceContract` and `RunReadOnlyContract` with self-tests against deliberately bad adapters (FR-027 to FR-031, FR-042, FR-049, FR-058); the test-only wrapping adapter and `scenarios/content_source_test.go` (FR-027, FR-043); archtest rule `source-files` (FR-033, FR-049); FR-034 is the existing `consumer-name` scan (A10). FR-047 is met for `InMemorySource`, `FakeSource` and the wrapping adapter only.
+- Mutation (gomu, per file): `source_error.go` 3 mutants, 100 (2 not viable; the `Error` message text is now asserted exactly); `in_memory_source.go` 4 mutants, 100; `source.go` has no mutable statements (constant and interface only), nothing to score; `named_text.go` 11 mutants, 100 (2 not viable). No survivors.
+- Choices the spec left open: `NewCatalogue` builds on `NewSet`, so a nil entry or an entry with an invalid key is rejected as the `*SetError` of `NewSet` (also wrapping `srderr.ErrInvalidInput`) and only a repeated key is a `*DuplicateKeyError`; `OfKind` returns a non-nil empty slice; the suites compare entries with `reflect.DeepEqual` so entry types that are not comparable work; the contract fixture entries are an unexported synthetic type, so `createFailing` and `create` are built from entries a real adapter must be able to hold; the failing group requires a nil result (nil `LookupResult`, nil slice) together with the `*SourceError`; the `//sumtype:decl` comments of section 6 are omitted because the lint is not applied (go.md section 7); FR-024's goroutine-count check is not made (it is racy next to parallel tests), the concurrent-call and cancelled-context checks are; the A8 scan skips package `content`, so FR-019 is checked by a reflection test in `content/source_test.go`; the FR-047 architecture scan for unregistered sources is not built.
+- Done (Phase 2, step 6, package `content/data`): `BundledSource`, `BundledInvalidError`, `NewBundledSource`, `MustBundledSource`, `WithDocuments`, `WithDecoder` and `Files()` (FR-059 to FR-063); the contract registrations of FR-047 (`RunSourceContract` over an injected fake decoder with no failing backend, `RunReadOnlyContract` over the embedded documents); FR-064 holds for the slice data (one index, no second bundled source). The tests are `bundled_source_test.go` and `bundled_source_internal_test.go`.
+- Choices the spec left open: the embedded index is the `embed.FS` itself (`fs.ReadDir`), not a second table, and `Files()` returns it as an `fs.FS`; an index entry that cannot be read becomes a document with empty text, which the decoder rejects (an `embed.FS` never fails; the fallback is tested with fixture file systems); a decoder that returns an error holding no `content.Problem` is reported as one `syntax` problem at the root, so a `*BundledInvalidError` always holds a problem; the package comment of `content/data` sits in its one Go file, `bundled_source.go`, because A12 allows no `doc.go` beside it (A9 is relaxed for that package, architecture.md A9).
+- Mutation (testing.md §8), `content/data/bundled_source.go`: score 92.3% (41 mutants, 36 killed, 3 survived, 2 not viable); at or above the 80 gate, so no tests added; survivors not individually triaged.
+
+Not yet implemented: the scan that fails an unregistered `Source` (FR-047, no archtest row added) and the doc review of FR-064 for later data specs.
 
 ## 9. Open questions and decisions
 

@@ -15,8 +15,9 @@ func checkDocs(pkg Package) []Violation {
 	name := pkg.Name()
 	hasDoc := false
 	for _, f := range pkg.Production() {
-		if f.Path == pkg.Dir+"/doc.go" || (pkg.Dir == Root && f.Path == "doc.go") {
-			hasDoc = f.AST.Doc != nil && strings.HasPrefix(f.AST.Doc.Text(), "Package "+name+" ")
+		// content/data may hold only one Go file (A12), so that file carries the package comment there.
+		if f.Path == pkg.Dir+"/doc.go" || (pkg.Dir == Root && f.Path == "doc.go") || pkg.Dir == dataDir {
+			hasDoc = hasDoc || (f.AST.Doc != nil && strings.HasPrefix(f.AST.Doc.Text(), "Package "+name+" "))
 		}
 		for _, decl := range f.AST.Decls {
 			vs = append(vs, checkDeclDoc(f, name, decl)...)
