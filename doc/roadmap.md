@@ -1,6 +1,6 @@
 # srd5e Roadmap
 
-Status: Phase 1 is implemented in Go and Phase 0 is partly implemented; later phases are proposed.
+Status: Phases 1 and 2 are implemented in Go (Phase 2 specs partly) and Phase 0 is partly implemented; later phases are proposed.
 Phases are ordered by the context map in
 [rules/architecture.md](rules/architecture.md) §2, which is itself provisional.
 Each phase is a vertical slice that ships tested, instrumented, documented
@@ -38,12 +38,22 @@ entry.
 
 **Status: partly implemented in Go.** Three of the six Phase 0 specs
 (`dice-and-rolls`, `modifiers-and-advantage`, `ability-scores`) are
-`implemented`. `errors-and-results` and `observability-ports` are partially
-implemented (a lint marker and some doc-comment tests are still owed) and
-`architecture-guardrails` is partially implemented: `internal/archtest`
-enforces architecture.md A1 to A13, and the requirements the spec lists under
-"Not yet implemented" (FR-021, FR-022, FR-032 and so on) are still to do. Each spec's `Implementation status` list names the
-ids done and not done.
+`implemented`. `errors-and-results` is partially implemented (its lint marker,
+citation scan and a few other ids, 11 in all, are still owed).
+`observability-ports` still has the header status `partially implemented`, but
+its own "Not yet implemented" line says none, so its status is due an audit and
+probably a flip to `implemented`. `architecture-guardrails` is partially
+implemented: `internal/archtest` enforces architecture.md A1 to A13, and the
+requirements the spec lists under "Not yet implemented" (about 40 ids: FR-021,
+FR-022, FR-032 and so on) are still to do. Also not yet mechanised: the
+observability checks O1 to O5 and the `Requirement:` comment check
+(testing.md section 9); existing tests carry few `Requirement:` comments, so
+backfill is pending. Each spec's `Implementation status` list names the ids
+done and not done.
+
+Audited against the code on 2026-10-17: `go build`, `go vet`,
+`golangci-lint run` and `go test -race -shuffle=on -cover ./...` all pass, and
+every package is above the 90% coverage floor.
 
 ## Phase 1: `d20` context
 
@@ -62,7 +72,7 @@ No upstream dependencies, and the core of the ruleset.
 
 ## Phase 2: `content` context
 
-**Status: not started** (no `content` package yet).
+**Status: implemented in Go (specs partly).** The `content` package, `content/contenttest` and `content/data` (the 17-entry slice) ship; the specs stay `partially implemented` with their own "Not yet implemented" lines.
 
 - `ContentSource` port (consumer-side interface, `context.Context` first) with a
   `Lookup` result interface whose variants are a closed set.
@@ -151,15 +161,15 @@ Monster abilities that need the `combat` types ship here too: limited use
 
 Roll-up of the `Status` row in each spec header (values in
 [specs/_template.md](specs/_template.md)). A spec flips status in the same
-change as the code. Only the kernel packages and `d20` exist; there are no
-`content`, `character`, `combat` or `toolbox` packages yet.
+change as the code. The kernel packages, `d20` and `content` exist; there are no
+`character`, `combat` or `toolbox` packages yet.
 
 | Status | Count | Specs |
 |---|---|---|
 | implemented | 4 | `ability-scores`, `d20-tests`, `dice-and-rolls`, `modifiers-and-advantage` |
-| partially implemented | 5 | `errors-and-results`, `observability-ports`, `architecture-guardrails`, `shared-types-and-ownership`, `resolve-d20-test-use-case` |
+| partially implemented | 16 | `errors-and-results`, `observability-ports`, `architecture-guardrails`, `shared-types-and-ownership`, `resolve-d20-test-use-case` and the `content` specs (`content-schema-and-decoder`, `content-source-port`, `content-species-backgrounds-feats`, `content-classes`, `content-equipment`, `content-magic-items`, `content-monsters`, `spell-effect-data`, `content-spells`, `content-thin-slice`, `content-licensing-and-notice`) |
 | accepted | 0 | none |
-| draft | 92 | every other spec in `specs/`, including `release-0-1-0` |
+| draft | 81 | every other spec in `specs/`, including `release-0-1-0` |
 
 ## Planning notes
 
@@ -170,7 +180,7 @@ change as the code. Only the kernel packages and `d20` exist; there are no
    behaviour specs, the Rules Glossary coverage table and the spell, monster,
    magic item, summoned creature and grid specs added by the later reconciliation
    passes (listed in [documentation_index.md](documentation_index.md)). All of
-   them except the nine implemented or partially implemented specs are drafts.
+   them except the 20 implemented or partially implemented specs are drafts.
    The remaining work is implementation, phase by phase, each spec flipping to
    `implemented` in the change that ships it. New gaps found while coding get a new spec or a new
    requirement id (never a renumbering), with its rank in
