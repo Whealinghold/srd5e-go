@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `content` |
 | Roadmap phase | Types 2; bulk data 5 |
-| Depends on | `errors-and-results.md`, `content-schema-and-decoder.md`, `content-source-port.md` |
+| Depends on | `errors-and-results.md`, `content-schema-and-decoder.md`, `content-source-port.md`, `spell-effect-data.md` |
 
 Phase rule: shared-types-and-ownership.md FR-014; see [../roadmap.md](../roadmap.md). content-thin-slice.md (same rank) is cited in prose only (FR-094), not a dependency.
 
@@ -37,7 +37,7 @@ spell lists, spot-check fixtures, human review) of the 339 entries.
   wiring, its decode test and `data.BundledSource`: shared-types-and-ownership.md FR-030 to
   FR-032.
 
-Notice and licensing for the bundled data are owned by content-licensing-and-notice.md, which this spec cites in prose and does not depend on (content-schema-and-decoder.md and content-source-port.md are its only content dependencies, shared-types-and-ownership.md FR-047).
+Notice and licensing for the bundled data are owned by content-licensing-and-notice.md, which this spec cites in prose and does not depend on (content-schema-and-decoder.md and content-source-port.md are its only content dependencies, shared-types-and-ownership.md FR-047, and from FR-122 spell-effect-data.md).
 
 
 ## 2. Source
@@ -63,7 +63,7 @@ review); a difference is investigated against the PDF page, never forced to matc
 | Spell | `Spell` (value object, `Entry`) | Key `(Kind.spell, SpellID)`; `SpellID` per content-schema-and-decoder.md FR-114 (shared-types-and-ownership.md FR-005, FR-046). |
 | Spell Level, Cantrip | `SpellLevel` (0-9) | Level 0 is a cantrip, printed "<School> Cantrip" instead of "Level N <School>". |
 | School of Magic | `SpellSchool` (enum) | Abjuration, Conjuration, Divination, Enchantment, Evocation, Illusion, Necromancy, Transmutation. |
-| Class Spell Lists | `Spell.classes` (set of `ClassID`); `ClassSpellList` (derived, FR-120) | The eight ids `bard`, `cleric`, `druid`, `paladin`, `ranger`, `sorcerer`, `warlock`, `wizard`. |
+| Class Spell Lists | `Spell.classes` (set of `ClassID`); `ClassSpellList`, derived by `DeriveClassSpellList` (FR-120) | The eight ids `bard`, `cleric`, `druid`, `paladin`, `ranger`, `sorcerer`, `warlock`, `wizard`. |
 | Casting Time | `CastingTime` (closed, five variants, FR-026) | Printed "Action" is the Magic action (p. 105). The lower-case case-table labels are the factory constructors (FR-114). |
 | (package) casting time options | `SpellCastingTimes` (closed: `Single`, `Modes`) | One time, or at least two labelled modes (Plant Growth, FR-033). |
 | Ritual | `Spell.ritual` | Printed "or Ritual" in the Casting Time entry. |
@@ -90,7 +90,7 @@ Stable ids, never renumbered; withdrawn ids are in the table at the end of this 
 | FR-008 | Every bundled spell MUST carry the citation document "SRD 5.2.1" (content-schema-and-decoder.md FR-090), the section "Spell Descriptions" and a page from 107 to 175 inclusive; the page MUST be the one on which the spell's heading is printed. | SRD 5.2.1, "Spell Descriptions", pp. 107-175; content-licensing-and-notice.md | happy |
 | FR-009 | `SpellLevel` MUST accept the integers 0 to 9 and MUST reject -1, 10 and any other value outside the range with an error matching `srderr.ErrInvalidInput`. | SRD 5.2.1, "Spell Level", p. 104 | unhappy (boundary) |
 | FR-010 | `NewSpellLevel(n)` MUST return `(SpellLevel, error)`: the level for 0 to 9 and otherwise a `*SpellLevelError` (FR-119; errors-and-results.md FR-027, FR-035) carrying the rejected integer and matching `srderr.ErrInvalidInput`, and MUST NOT panic; `MustSpellLevel` panics with that error. | `doc/rules/architecture.md` §6 (untrusted input) | unhappy (invalid input) |
-| FR-011 | `SpellLevel.isCantrip` MUST be true for level 0 and false for levels 1 to 9. | SRD 5.2.1, "Spell Level", p. 104 | unhappy (boundary) |
+| FR-011 | `SpellLevel.IsCantrip` MUST be true for level 0 and false for levels 1 to 9. | SRD 5.2.1, "Spell Level", p. 104 | unhappy (boundary) |
 | FR-012 | `SpellSchool` MUST enumerate exactly the eight schools in the Schools of Magic table and nothing else. | SRD 5.2.1, "Schools of Magic", p. 105 | happy |
 | FR-013 | Extraction MUST read level and school from the header line: "Level N <School>" gives level N, "<School> Cantrip" gives level 0. Any other header form MUST be reported as a problem (table: header forms). | SRD 5.2.1, "Spell Descriptions", p. 107 (Acid Arrow, Acid Splash) | unhappy (invalid input) |
 | FR-014 | The bundled set MUST contain the per-level counts in the table "Distributions". | SRD 5.2.1, "Spell Descriptions", pp. 107-175 | happy |
@@ -194,8 +194,8 @@ Stable ids, never renumbered; withdrawn ids are in the table at the end of this 
 | FR-117 | A check that reads the real filesystem with `os` MUST live in `internal/archtest/` and run (it is not run in the pure unit suite): the embedded-documents decode test (FR-106), the notes-file check (FR-046), the exceptions-log check (FR-025, FR-097), the ten-files-present check (FR-081) and the import scan (FR-105). This is a stated exception to "no real filesystem" (`doc/rules/testing.md` §6), as in content-schema-and-decoder.md FR-089, because the files are the artefact under test. `content/data/bundled_spells_test.go` reads only the embedded documents and the fixtures of FR-116, so it stays platform-independent (content-schema-and-decoder.md FR-099). | `doc/rules/testing.md` §3, §6; content-schema-and-decoder.md FR-089, FR-099 | happy |
 | FR-118 | Tests of the extraction tool live in the `tools/` module tests (beside the code) as unit tests using only synthetic records and the fixtures of FR-116, importing no port or double. The `tools/` module is not listed in `doc/rules/testing.md` §10, so the accepting change MUST amend that section (replacing its RULE-TAG with a fresh random value) and keep the "every test cites a requirement" architecture check covering it. | `doc/rules/testing.md` §3, §9, §10 | happy |
 | FR-119 | The model MUST name and export (no generic variant names, shared-types-and-ownership.md FR-017): `DistanceUnit` (enum: `feet`, `miles`), `DurationLimit` (enum: `fixed`, `upTo`, `concentrationUpTo`) and the `NewSpellLevel` rejection (a `*SpellLevelError` carrying the rejected integer, matching `srderr.ErrInvalidInput`, and `errors.As`-able). `NewSpellRangeDistance(amount, unit)` takes a `DistanceUnit`; `NewSpellDurationTimed(amount, unit, limit)` takes the `DurationUnit` owned by content-schema-and-decoder.md FR-149 and a `DurationLimit`. This spec defines no `DurationUnit`. | `doc/rules/architecture.md` §3, §6; SRD 5.2.1, "Range", p. 105; "Duration", p. 106; shared-types-and-ownership.md FR-065 | happy |
-| FR-120 | A class spell list MUST be derived from `Spell.classes`, never stored on a class entry: the pure function `classSpellList(ClassID, []Spell)` returns a `ClassSpellList` holding the `ClassID` and, for each `SpellLevel` 0 to 9, a defensively copied list of the `SpellID`s of the spells whose `classes` contain the id (`idsAt(level)`). A `ClassID` listed by no spell, and a non-caster, yields empty groups. `ClassSpellList` and `ClassSpellList` are defined here in package `content`; content-classes.md defines neither and asks nothing of this spec. | SRD 5.2.1, "Class Spell Lists", p. 105; shared-types-and-ownership.md FR-066 | happy |
-| FR-121 | Within a group the `SpellID`s MUST be ordered by string value with ordinal comparison, so the result is deterministic and independent of input order; the list MUST be defensively copied and the function MUST NOT alter its input. `ClassSpellList` MUST NOT depend on a `ClassDefinition`: a list for a `ClassID` held by no loaded class (a host's house class) is derived the same way, since membership is a fact of the spell (FR-016, FR-110). | `doc/rules/testing.md` §4 (determinism, immutability); `doc/rules/architecture.md` §2, §3 | unhappy (determinism) |
+| FR-120 | A class spell list MUST be derived from `Spell.classes`, never stored on a class entry: the pure function `DeriveClassSpellList(ClassID, []Spell)` (Go cannot export both a type and a function named `ClassSpellList`; plan item P7) returns a `ClassSpellList` holding the `ClassID` and, for each `SpellLevel` 0 to 9, a defensively copied list of the `SpellID`s of the spells whose `classes` contain the id (`IDsAt(level)`). A `ClassID` listed by no spell, and a non-caster, yields empty groups. `ClassSpellList` and `DeriveClassSpellList` are defined here in package `content`; content-classes.md defines neither and asks nothing of this spec. | SRD 5.2.1, "Class Spell Lists", p. 105; shared-types-and-ownership.md FR-066 | happy |
+| FR-121 | Within a group the `SpellID`s MUST be ordered by string value with ordinal comparison, so the result is deterministic and independent of input order; the list MUST be defensively copied and the function MUST NOT alter its input. `DeriveClassSpellList` MUST NOT depend on a `ClassDefinition`, and a spell that appears twice in its input is listed once: a list for a `ClassID` held by no loaded class (a host's house class) is derived the same way, since membership is a fact of the spell (FR-016, FR-110). | `doc/rules/testing.md` §4 (determinism, immutability); `doc/rules/architecture.md` §2, §3 | unhappy (determinism) |
 | FR-122 | `Spell` MUST carry `effects`, a `SpellEffectModel` defined by spell-effect-data.md (not here), defaulting to its zero-value `TextOnlyEffects`; a `Spell` without it is valid (FR-018). The optional last JSON key `effects` is read by that spec's decoder shape (its FR-030; revision row R2-spell-effects in content-schema-and-decoder.md); absence decodes to `TextOnlyEffects`. This spec defines no effect type; it imports the model from spell-effect-data.md (a lower rank, listed in Depends on), which MUST NOT import `Spell`, so imports stay acyclic (Q17). The `Spell` constructor calls that spec's level check (its FR-009) with the spell level. | spell-effect-data.md FR-001, FR-030, Q5; shared-types-and-ownership.md FR-035, FR-059 | happy |
 
 #### Withdrawn ids
@@ -477,7 +477,7 @@ written). Scrying (p. 160, two tables of 3 rows) and Augury (p. 111, 4 rows) joi
   FR-036, FR-050) and `TextBlock` (used, FR-059), `DistanceUnit`, `DurationLimit`, `SpellLevelParse` (FR-119) and the
   derived `ClassSpellList` (FR-120); names and factories: FR-114. `SourceCitation`, `SpellID`,
   `ClassID` and `DurationUnit` are used, not defined (FR-113, FR-119). The pure function
-  `ClassSpellList` (FR-120, FR-121) is the only domain service; there is no aggregate, entity
+  `DeriveClassSpellList` (FR-120, FR-121) is the only domain service; there is no aggregate, entity
   or event.
 - **`Spell` fields:** `id`, `name`, `level`, `school`, `classes` (set of `ClassID`),
   `castingTimes`, `ritual`, `range`, `components`, `duration`, `description`, `higherLevel` and
@@ -516,7 +516,7 @@ optional, by absence. Strings in quotes are the exact accepted values.
 - **No new port and no use case.** Spells are reached through `content.Source.Lookup` and
   `ListKind` (content-source-port.md); the port failure contract is unchanged. A `LookupFound`
   carrying a non-`Spell` entry under key kind `spell` is a content-modelling bug. All types and
-  `ClassSpellList` are synchronous.
+  `DeriveClassSpellList` are synchronous.
 - **Exports:** package `content` exports the types of section 5
   with doc comment (names in FR-026, FR-030, FR-036, FR-050, FR-114, FR-119, FR-120): the
   published language of `content` that `character` may use. `SourceCitation`, `SpellID`, `ClassID`
@@ -572,6 +572,17 @@ run on any platform; checks using `os` are "architecture" tests (FR-117).
   person; they are enforced by `--check` run locally, the review log in the extraction notes, and
   review of any change to bundled spells. Every other FR has a test.
 
+**Implementation status.**
+
+- Done (Phase 2, step 5g, package `content`, files `spell.go`, `spell_level.go`, `spell_enums.go`, `spell_casting_time.go`, `spell_range.go`, `spell_duration.go`, `spell_components.go`, `spell_list.go`, `decode_spell.go`, `decode_spell_effects.go`, `spell_effects_parse.go`): the types and constructors `Spell` (`NewSpell`, `MustSpell`, `SpellFields`, `ValidSpellName`), `SpellLevel` (`NewSpellLevel`, `MustSpellLevel`, `SpellLevelError`, `IsCantrip`, the constants and `ValidSpellLevel`), `SpellSchool`, `DistanceUnit`, `DurationLimit` (each with `ParseX`), the closed `CastingTime` (five variants), `CastingTimeMode`, the closed `SpellCastingTimes` (`SpellCastingTimesSingle`, `SpellCastingTimesModes`), the closed `SpellRange` (six variants), the closed `SpellDuration` (five variants), `MaterialComponent`, `SpellComponents` and `DeriveClassSpellList` with `ClassSpellList` (plan item P7); the decoder row of `spells` (registered after `feats`, its place in the revision table) with the shape of section 5.2, the `effects` key of spell-effect-data.md section 6.1, the agreement rows of FR-111 and the fuzz seeds. Tested ids: FR-007, FR-009 to FR-012, FR-017, FR-026 to FR-030, FR-036, FR-037, FR-041 and FR-049 (types and decoder), FR-050 to FR-052, FR-057 (the method), FR-058, FR-059, FR-086 to FR-089, FR-092 (R1-spells), FR-098, FR-101, FR-102, FR-107 to FR-111, FR-113 to FR-115, FR-119 to FR-122. The exported names of FR-114 and FR-119 exist once each and the module has no `SpellScaling` (`internal/archtest/spell_types_test.go`, FR-114, FR-115). FR-088 and FR-089 are pinned by `TestSpellFilesArePureAndToolsIsNotImported` in the same file (the `tools/` half holds vacuously until the extraction tool exists). Every closed set is built from value variants only: a nil or a pointer variant is rejected with an error (`pointer_variants_test.go`).
+- Choices the spec left open: the function of FR-120 is `DeriveClassSpellList` and the group accessor `IDsAt` (a type and a function cannot both be `ClassSpellList`, plan item P7); the zero `SpellLevel` is the cantrip level and is valid, so `NewSpell` checks the level it is given; the factories with an optional or required argument are `NewCastingTimeBonusAction()` (no trigger) and `NewCastingTimeBonusActionTriggered(trigger)`; `SpellComponents` is built by `NewSpellComponents(verbal, somatic)` and `WithMaterial(m)`; `Spell.Classes()` returns the classes in ordinal order, so two spells that differ only in listing order are equal (FR-017), and an empty list of classes, `costsGp` or optional text is stored as none (as the other entries do); a casting time label follows the name rule (schema FR-027); the decoder reads integers up to 2^31 - 1 (outOfRange above); `castingTimes` with one element is a single time (a `label` there is `constraintViolation` at the label) and with two or more is a list of modes, each with a required label; the Spell level check of FR-122 is reported at the `effects` key (spell-effect-data.md section 6.1). Plan item P2 (the rank table and this spec's header omitting spell-effect-data.md) is fixed in the `Depends on` row; the rank table of shared-types-and-ownership.md section 4.11 now ranks spell-effect-data at 5.
+- Done (Phase 2, step 6, `content/data/spells.json`): twelve spells of the thin slice (Fire Bolt, Prestidigitation, Detect Magic, Magic Missile, Misty Step, Fireball and the six Elf lineage spells), transcribed from the PDF with run-in headings as `entry` blocks, `higherLevel` and `cantripUpgrade` as text, no `effects`, served by `data.BundledSource` and pinned by content-thin-slice.md (the slice pins FR-003, FR-007, FR-060 are replaced by FR-094 when the 339 land). The extraction tool, the other 327 spells and the counts are not implemented.
+
+Not yet implemented: everything that needs the bundled data or the extraction tool: FR-001 to FR-006, FR-008, FR-013 to FR-016, FR-018 to FR-025, FR-031 to FR-035, FR-038 to FR-040, FR-042 to FR-048, FR-053 to FR-056, FR-060 to FR-085, FR-090, FR-091, FR-094, FR-097, FR-100, FR-103 to FR-106 and FR-116 to FR-118; the extraction half of FR-041 and FR-049 and the count of FR-057; the bundle half of FR-092 (R1-spells is `partially implemented`); the mutation score of the 5g files.
+- Mutation (vocabulary-3, manual fallback, 21 mutations): `content/spell_level.go` 21/21 caught after `TestSpellLevelErrorContract` pinned the value returned beside the error, the panic value and the nil-target and nil-receiver `Is` cases; no survivors.
+- Mutation (spells-1, manual fallback, 15 to 35 mutations per file, none of the four files has a same-named test): `content/spell_list.go` all caught after `TestClassSpellListEqualComparesEveryLevel` and `TestDeriveClassSpellListSortsTopLevel`; one survivor is equivalent (dropping the `s.level.Valid()` guard in `DeriveClassSpellList`: `NewSpell` rejects an invalid level, so no `Spell` can hold one). `content/spell_range.go`, `content/spell_duration.go` and `content/spell_components.go` all caught after `TestCheckSpellRangeAndDurationRecheckEveryMember` and `TestSpellComponentsMaterialIsRecheckedAndCopied` (internal tests that build the variants by hand); no survivors.
+- Mutation (spells-2): `content/decode_spell.go` gomu 78.0 then 81.6 (40 killed, 9 survived) after `TestDecodeSpellCases` pinned that an unknown casting kind hides the label rule; the survivors are equivalent: `reqBool` absent returning true and `decodeMaterial` non-object returning true (the problem is already recorded, so the entry is dropped); the `levelOK` branch (the failed `integer` returns 0, the zero level); `return "", nil` mutated to itself (two); `kind == ""` to `<=` (identical for strings); and `err == nil && clean` to `||` in range, duration and material (a constructor error is always preceded by a recorded problem). Manual fallback, 50 mutations over `content/spell_enums.go`, `content/spell_casting_time.go` and `content/spell.go` (no same-named tests): all caught after `TestSpellVocabularySpellings` and `TestSpellCastingTimeZeroVariantsAndEqualityEdges`, except two equivalent survivors in `spell.go`: `s.id == o.id` in the zero-Spell branch of `Equal` (both ids are zero there) and the `cloneCastingTimes` copy (the modes slice is already copied by its constructor and by `Modes()`).
+
 ## 9. Open questions and decisions
 
 No open questions. Settled, referenced by label in the text: Q4 embedded stat blocks stay verbatim blocks, a monster
@@ -581,14 +592,14 @@ extraction uses poppler in Docker, outside `go.mod` (FR-100, FR-079); Q10 one da
 sorted by id (FR-005, FR-105); Q11 the class-list oracle is a checked-in derived Go fixture (FR-116); Q12 the M
 flag equals a stated GP cost except Gentle Repose (FR-025, FR-097); Q13 `consumesMaterial` is one flag plus the
 verbatim description, not per cost item (FR-044); Q14 class spell lists are derived here from `Spell.classes`
-(FR-120; shared-types-and-ownership.md FR-066); Q15 `DurationUnit` is the schema's (FR-119; FR-065 there). Q16 text blocks are the neutral `TextBlock` of the schema spec, no spell-named family (FR-059; content-magic-items.md Q2). Q17 `Spell.effects` (FR-122) is typed by spell-effect-data.md, which does not import `Spell` and ranks below this spec (rank table in shared-types-and-ownership.md section 4.11 to move it to 5, flagged to that owner). No Q7 exists here. Q8 (cited by content-equipment.md) is the testing.md §10 `tools` tests amendment, recorded at FR-118; the other specs should cite FR-118 and drop Q7.
+(FR-120; shared-types-and-ownership.md FR-066); Q15 `DurationUnit` is the schema's (FR-119; FR-065 there). Q16 text blocks are the neutral `TextBlock` of the schema spec, no spell-named family (FR-059; content-magic-items.md Q2). Q17 `Spell.effects` (FR-122) is typed by spell-effect-data.md, which does not import `Spell` and ranks below this spec (rank 5 in shared-types-and-ownership.md section 4.11). No Q7 exists here. Q8 (cited by content-equipment.md) is the testing.md §10 `tools` tests amendment, recorded at FR-118; the other specs should cite FR-118 and drop Q7.
 
 ## 10. Changelog impact
 
 Under `Unreleased`:
 - **Added (Phase 2, types):** every type and function named in section 5 (`Spell`, `SpellLevel`,
   `SpellSchool`, the casting time, range and duration families, `ClassSpellList`,
-  `ClassSpellList`; the public packages), plus decoder support for the spell JSON shape
+  `DeriveClassSpellList`; the public packages), plus decoder support for the spell JSON shape
   (row R1-spells, FR-092; no separate `schemaVersion`). Nothing is BREAKING (unpublished 0.0.1).
 - **Added (Phase 5, data):** the 339 SRD 5.2.1 spells as bundled content (`NOTICE.md` covers
   `data/`, `content/data/`, `testdata/srd/`), replacing the twelve thin-slice spells

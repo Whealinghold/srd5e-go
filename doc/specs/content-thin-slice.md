@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `content` |
 | Roadmap phase | Types 2; slice data 2; bulk data 5 |
 | Depends on | `content-schema-and-decoder.md`, `content-source-port.md` |
@@ -566,6 +566,12 @@ Deliberately not covered: verbatim fidelity beyond pinned phrases (FR-079);
 infrastructure failure of the bundled source (no I/O; content-source-port.md
 tests the contract and FR-061); a `LookupNotFound` signal (none exists,
 section 7).
+
+**Implementation status.**
+
+- Done (Phase 2, step 6, package `content/data`): the three documents `species.json` (4 species), `class_wizard.json` (the Wizard, no subclass) and `spells.json` (12 spells), transcribed from SRD 5.2.1 at the pages of section 2; `bundled_source.go` with `BundledSource`, `BundledInvalidError`, the options and `Files()` (content-source-port.md FR-059 to FR-064). The pins are `data_pin_test.go` (FR-001 to FR-007, FR-008, FR-062 to FR-067, FR-078, FR-084, the file-list pin), `data_species_test.go` (FR-009 to FR-032, T1 to T4), `data_spells_test.go` (FR-048 to FR-061, FR-083, T6, T7) and `data_wizard_test.go` (the Wizard shape, whose value pins are content-classes.md's), driven by the oracle under `content/data/testdata/srd/thin_slice/` (README with the attribution pointer, content-licensing-and-notice.md FR-027). The oracle phrases and tables were checked against the PDF text; the data strings were checked as substrings of the PDF text with line-end hyphens resolved (FR-066 of content-spells.md rule: joined unless a genuine hyphenated form, as in "10-foot").
+- Choices the spec left open: the oracle sits in `content/data/testdata/srd/thin_slice/` and is embedded into the tests (`go:embed` cannot reach a `testdata/` at the module root, and tests read no real filesystem); species `sizes` are `[Small, Medium]` for the Human (the order of content-species-backgrounds-feats.md FR-012; compared as a set); trait text is the text after the run-in heading with paragraphs joined by one line feed, so Breath Weapon, Stonecunning and Elven Lineage hold two or three paragraphs; the Elven Lineages table cells are stored as printed (the zero-width space of the PDF is dropped); starting equipment names keep the printed typographic apostrophe ("Scholar’s Pack").
+- Not yet implemented: FR-079 (the person's check of every long text against the PDF, recorded in the PR checklist; a process requirement, not claimed by CI).
 
 ## 9. Open questions and decisions
 
