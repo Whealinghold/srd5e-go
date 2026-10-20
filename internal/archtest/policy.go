@@ -51,6 +51,7 @@ func DefaultPolicy() Policy {
 		"telemetry/telemetrytest": {Kind: KindSupport, Allow: []string{"telemetry"}},
 		"telemetry/slogtelemetry": {Kind: KindAdapter, Allow: []string{"telemetry"}},
 		"dice/randroller":         {Kind: KindAdapter, Allow: []string{"dice", "srderr"}},
+		"content/contenttest":     {Kind: KindSupport, Allow: []string{"content", "srderr"}},
 		"content/data":            {Kind: KindAdapter, Allow: append([]string{"content"}, kernel...)},
 		"d20":                     {Kind: KindContext, Allow: kernel},
 		"content":                 {Kind: KindContext, Allow: kernel},
@@ -66,7 +67,7 @@ func DefaultPolicy() Policy {
 // code must not import (rule A3); exceptions are in stdlibExceptions.
 func deniedStdlib(importPath string) bool {
 	switch importPath {
-	case "os", "os/exec", "net", "io/ioutil", "reflect", "unsafe", "syscall", "log",
+	case "os", "os/exec", "net", "io/fs", "io/ioutil", "reflect", "unsafe", "syscall", "log",
 		"math/rand", "math/rand/v2", "sync", "sync/atomic":
 		return true
 	}

@@ -402,9 +402,38 @@ just mutate ./srderr     # one package
 
 ```sh
 cpus=$(( $(nproc) / 4 )); cpus=$(( cpus < 1 ? 1 : cpus ))
-docker run --rm --cpus="$cpus" -v "$PWD":/workspace -w /workspace golang:1.26 \
-  sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && gomu run --workers=$cpus --incremental=false --ci-mode --threshold=80 ."
+docker run --rm --cpus="$cpus" --memory=8g --memory-swap=8g --pids-limit=1024 \
+  --user "$(id -u):$(id -g)" -e GOMEMLIMIT=3GiB -e HOME=/tmp/home -e GOCACHE=/tmp/gocache -e GOPATH=/tmp/gopath \
+  -v "$PWD":/workspace -w /workspace golang:1.26 \
+  sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && /tmp/gopath/bin/gomu run --workers=$cpus --incremental=false --ci-mode --threshold=80 ."
 ```
+
+The recipe adds these on top of that command:
+
+- **`MUTATE_CPUS`** lowers the cap: `cpus = min(nproc/4 (at least 1), MUTATE_CPUS)`,
+  used for both `--cpus` and `--workers`. It can never raise the cap above a
+  quarter of the processors; a non-integer value is rejected.
+- **Invoking user, not root.** The container runs with `--user "$(id -u):$(id -g)"`
+  and `HOME`, `GOCACHE`, `GOPATH` under `/tmp`, so `mutation-report.json` and
+  `.gomu_history.json` belong to you.
+- **One file or one package.** `just mutate ./content/kind.go` mutates a single
+  file; `just mutate ./srderr` a package; the default `.` the whole module.
+  The whole-module and package calls keep `--ci-mode --threshold=80` (gate fails
+  below 80). A `.go` path omits `--ci-mode`: it prints that file's score and
+  survivors and exits 0, so judge the score against 80 yourself. Example:
+  `MUTATE_CPUS=3 just mutate ./content/kind.go`.
+- **Memory and process cap.** The container also gets `--memory=8g
+  --memory-swap=8g` (no swap) and `--pids-limit=1024`, so a runaway mutant
+  cannot exhaust RAM or the process table, and `GOMEMLIMIT=3GiB` inside it makes
+  the Go runtime collect garbage early (a first run without it was OOM-killed by
+  a mutant test binary growing to 7.5 GiB).
+- **Shared machines.** Run `just mutate` (and every other heavy host command)
+  under a lock and a cgroup cap, for example
+  `flock /tmp/srd5e-heavy.lock systemd-run --user --scope -q -p CPUQuota=400% -p MemoryMax=8G -p MemorySwapMax=0 nice -n 19 ionice -c3 env GOMAXPROCS=4 GOMEMLIMIT=6GiB MUTATE_CPUS=3 just mutate ./content/kind.go`,
+  so concurrent runs queue instead of competing.
+- gomu v0.2.1 produces no output for a source file without a same-named
+  `_test.go` (`foo.go` needs `foo_test.go`); such files use the manual-mutation
+  fallback below.
 
 Verified gomu v0.2.1 CLI (`gomu run --help`):
 
@@ -613,7 +642,7 @@ internal/archtest/                             # guardrails (§9)
 
 ## Read receipt
 
-RULE-TAG: `testing-1525ed0d301e`
+RULE-TAG: `testing-70b8083164a8`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

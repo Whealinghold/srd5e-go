@@ -49,3 +49,17 @@ func TestRealModuleHasRuleFiles(t *testing.T) {
 		t.Fatalf("doc/rules/*.md = %v (err %v); want architecture, go, observability and testing", rules, err)
 	}
 }
+
+// TestRealModuleDeclaresEveryVocabularyType pins schema FR-128 and FR-130 on
+// the real tree: every vocabulary type is declared (the duplicate check is in
+// Check).
+func TestRealModuleDeclaresEveryVocabularyType(t *testing.T) {
+	t.Parallel()
+	m, err := archtest.Load(os.DirFS("../.."))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if missing := archtest.MissingVocabulary(m); len(missing) != 0 {
+		t.Errorf("vocabulary types with no declaration: %v", missing)
+	}
+}

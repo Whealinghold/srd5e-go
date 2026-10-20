@@ -29,6 +29,11 @@ cover:
     go test -race -shuffle=on -coverprofile=coverage.txt ./...
     go tool cover -func=coverage.txt | tail -n 1
 
+# Integer width differs between platforms (content schema FR-021, FR-099); no -race on a 32-bit target.
+[doc("Run the content tests at 32-bit integer width: GOARCH=386 go test ./content/...")]
+test-386:
+    GOARCH=386 go test ./content/...
+
 # go test allows one -fuzz target per package, so each Fuzz* target runs in turn.
 [doc("Run every Fuzz* target briefly; arg: fuzztime (default 5s)")]
 fuzz-smoke fuzztime="5s":
@@ -58,19 +63,30 @@ tidy-check:
     go mod tidy -diff
 
 # Mutation testing runs in capped Docker, in CI on pull requests; see doc/rules/testing.md.
-[doc("Everything CI runs: gofmt, vet, lint, coverage, tidy, arch, fuzz-smoke")]
+[doc("Everything CI runs: gofmt, vet, lint, coverage, 32-bit content tests, tidy, arch, fuzz-smoke")]
 check:
     @test -z "$(gofmt -l .)" || { gofmt -l .; echo "gofmt needed"; exit 1; }
-    just vet lint cover cover-check tidy-check arch
+    just vet lint cover
+    just cover-check
+    just test-386
+    just tidy-check arch
     just fuzz-smoke 10s
 
 # Docker only, CPUs and workers capped at 1/4 of nproc (doc/rules/testing.md section 8).
-# gomu takes ONE path and not ./...; "." recurses over the whole module.
-# Without --ci-mode gomu exits 0 even below the threshold.
-[doc("Mutation tests in capped Docker; arg: pkg (default ., e.g. ./srderr)")]
+# MUTATE_CPUS may lower the cap, never raise it. Runs as the invoking user so reports are not root-owned.
+# gomu takes ONE path and not ./...; "." recurses over the whole module, a .go file mutates that file.
+# Without --ci-mode gomu exits 0 even below the threshold; a single-file call omits it (score and survivors, no gate).
+[doc("Mutation tests in capped Docker; arg: path (default ., e.g. ./srderr or ./content/kind.go); env MUTATE_CPUS lowers the CPU cap")]
 mutate pkg=".":
     #!/usr/bin/env bash
     set -euo pipefail
     cpus=$(( $(nproc) / 4 )); cpus=$(( cpus < 1 ? 1 : cpus ))
-    docker run --rm --cpus="$cpus" -v "$PWD":/workspace -w /workspace golang:1.26 \
-      sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && gomu run --workers=$cpus --incremental=false --ci-mode --threshold=80 {{ pkg }}"
+    want="${MUTATE_CPUS:-$cpus}"
+    [[ "$want" =~ ^[1-9][0-9]*$ ]] || { echo "MUTATE_CPUS must be a positive integer" >&2; exit 2; }
+    cpus=$(( want < cpus ? want : cpus ))
+    gate="--ci-mode --threshold=80"
+    case "{{ pkg }}" in *.go) gate="" ;; esac
+    docker run --rm --cpus="$cpus" --memory=8g --memory-swap=8g --pids-limit=1024 --user "$(id -u):$(id -g)" \
+      -e GOMEMLIMIT=3GiB -e HOME=/tmp/home -e GOCACHE=/tmp/gocache -e GOPATH=/tmp/gopath \
+      -v "$PWD":/workspace -w /workspace golang:1.26 \
+      sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && /tmp/gopath/bin/gomu run --workers=$cpus --incremental=false $gate {{ pkg }}"

@@ -8,30 +8,36 @@ import (
 
 // Rule identifiers carried by Violation.Rule.
 const (
-	RuleUnlisted    = "unlisted-package"
-	RuleImport      = "import-not-allowed"
-	RuleIsolation   = "test-support-isolation"
-	RuleInternal    = "internal-import"
-	RuleStdlib      = "stdlib-denied"
-	RuleThirdParty  = "third-party-import"
-	RuleGoMod       = "go-mod-require"
-	RuleInit        = "init-function"
-	RuleVar         = "package-level-var"
-	RuleEffect      = "hidden-effect"
-	RulePanic       = "panic-discipline"
-	RuleDoc         = "missing-doc"
-	RulePackageDoc  = "missing-package-doc"
-	RuleStutter     = "stutter"
-	RuleConsumer    = "consumer-name"
-	RuleKernelUp    = "kernel-imports-context"
-	RuleCycle       = "import-cycle"
-	RulePortUse     = "port-use"
-	RuleVariant     = "variant-set"
-	RuleErrorShape  = "error-shape"
-	RuleNoticePaths = "notice-paths"
-	RuleEmbed       = "embedded-data"
-	RuleRuleTag     = "rule-tag"
-	RuleDocsOnly    = "docs-only"
+	RuleUnlisted       = "unlisted-package"
+	RuleImport         = "import-not-allowed"
+	RuleIsolation      = "test-support-isolation"
+	RuleInternal       = "internal-import"
+	RuleStdlib         = "stdlib-denied"
+	RuleThirdParty     = "third-party-import"
+	RuleGoMod          = "go-mod-require"
+	RuleInit           = "init-function"
+	RuleVar            = "package-level-var"
+	RuleEffect         = "hidden-effect"
+	RulePanic          = "panic-discipline"
+	RuleDoc            = "missing-doc"
+	RulePackageDoc     = "missing-package-doc"
+	RuleStutter        = "stutter"
+	RuleConsumer       = "consumer-name"
+	RuleKernelUp       = "kernel-imports-context"
+	RuleCycle          = "import-cycle"
+	RulePortUse        = "port-use"
+	RuleVariant        = "variant-set"
+	RuleErrorShape     = "error-shape"
+	RuleNoticePaths    = "notice-paths"
+	RuleEmbed          = "embedded-data"
+	RuleRuleTag        = "rule-tag"
+	RuleDocsOnly       = "docs-only"
+	RuleIdentity       = "identity-files"
+	RuleVocabulary     = "vocabulary-declaration"
+	RuleSourceFiles    = "source-files"
+	RuleJSONConfined   = "json-confined"
+	RuleContentPortUse = "content-port-use"
+	RuleThirtyTwoBit   = "thirty-two-bit"
 )
 
 // Violation is one breach of an architecture rule.
@@ -67,16 +73,22 @@ func Check(m Module, p Policy) []Violation {
 			vs = append(vs, Violation{Rule: RuleUnlisted, File: pkg.Dir, Msg: "package is in neither the allow-list nor the context map; add it to the policy and doc/rules/architecture.md"})
 		}
 		vs = append(vs, checkImports(m, p, pkg, entry, listed)...)
+		vs = append(vs, checkIdentityFiles(m, pkg)...)
+		vs = append(vs, checkSourceFiles(m, pkg)...)
 		vs = append(vs, checkDecls(p, pkg)...)
 		vs = append(vs, checkDocs(pkg)...)
 		vs = append(vs, checkPortUse(m, p, pkg)...)
 		vs = append(vs, checkVariants(p, pkg)...)
 		vs = append(vs, checkErrorShape(p, pkg)...)
 		vs = append(vs, checkDocsOnly(p, pkg)...)
+		vs = append(vs, checkJSONConfined(pkg)...)
+		vs = append(vs, checkContentPortUse(pkg)...)
 	}
 	vs = append(vs, checkConsumerNames(m, consumerNames())...)
 	vs = append(vs, checkPortNames(m)...)
 	vs = append(vs, checkEmbedded(m)...)
+	vs = append(vs, checkVocabulary(m)...)
+	vs = append(vs, checkThirtyTwoBit(m)...)
 	vs = append(vs, checkRuleTags(m)...)
 	sort.SliceStable(vs, func(i, j int) bool {
 		a, b := vs[i], vs[j]

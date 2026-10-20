@@ -153,6 +153,8 @@ func TestEmbeddedData(t *testing.T) {
 		{"content imports data", with(map[string]string{"content/data/doc.go": "// Package data is a fixture.\npackage data\n", "content/x.go": "package content\n\nimport _ \"example.com/m/content/data\"\n"}), archtest.RuleImport},
 		{"d20 imports data", map[string]string{"content/data/doc.go": "// Package data is a fixture.\npackage data\n", "d20/x.go": "package d20\n\nimport _ \"example.com/m/content/data\"\n"}, archtest.RuleImport},
 		{"test file imports data", map[string]string{"content/data/x.json": "{}", "content/data/doc.go": dataGo, "NOTICE.md": notice("`content/data/`"), "d20/x_test.go": "package d20_test\n\nimport _ \"example.com/m/content/data\"\n"}, ""},
+		{"embed file under another name carries the package comment", with(map[string]string{"content/data/x.json": "{}", "content/data/bundled_source.go": dataGo, "NOTICE.md": notice("`content/data/`")}), ""},
+		{"embed file under another name has no package comment", with(map[string]string{"content/data/x.json": "{}", "content/data/bundled_source.go": "package data\n\nimport \"embed\"\n\n// FS holds the JSON.\n//\n//go:embed *.json\nvar FS embed.FS\n", "NOTICE.md": notice("`content/data/`")}), archtest.RulePackageDoc},
 	})
 }
 
@@ -248,4 +250,252 @@ func TestConsumerNameInGithubDir(t *testing.T) {
 	if !slices.Contains(rules(t, fsys), archtest.RuleConsumer) {
 		t.Fatal("consumer name in .github/ not reported")
 	}
+}
+
+// Requirement: architecture.md section 1 (content/contenttest row); plan-phase-2.md step 0.
+// Path: content/contenttest may import content and srderr only.
+func TestContentTestPolicy(t *testing.T) {
+	t.Parallel()
+	ct := func(imp string) map[string]string {
+		return map[string]string{
+			"content/doc.go":              "// Package content is a fixture.\npackage content\n",
+			"content/contenttest/doc.go":  "// Package contenttest is a fixture.\npackage contenttest\n",
+			"content/contenttest/fake.go": "package contenttest\n\nimport _ \"" + imp + "\"\n",
+			"character/doc.go":            "// Package character is a fixture.\npackage character\n",
+		}
+	}
+	runGuardCases(t, []guardCase{
+		{"imports content", ct("example.com/m/content"), ""},
+		{"imports srderr", ct("example.com/m/srderr"), ""},
+		{"imports a context", ct("example.com/m/character"), archtest.RuleImport},
+		{"imports d20", ct("example.com/m/d20"), archtest.RuleImport},
+		{"imports dice", ct("example.com/m/dice"), archtest.RuleImport},
+		{"imports another test package", ct("example.com/m/dice/dicetest"), archtest.RuleImport},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-148 - the identity files
+// of package content import only the standard library and srderr, never context
+// or telemetry, and never refer to PortError.
+// Path: per case.
+func TestIdentityFiles(t *testing.T) {
+	t.Parallel()
+	const rule = archtest.RuleIdentity
+	id := func(name, body string) map[string]string {
+		return map[string]string{
+			"content/doc.go":  "// Package content is a fixture.\npackage content\n",
+			"content/" + name: "package content\n" + body,
+		}
+	}
+	runGuardCases(t, []guardCase{
+		{"stdlib and srderr", id("id.go", "\nimport (\n\t\"strconv\"\n\t\"example.com/m/srderr\"\n)\n\nvar _ = strconv.Itoa\nvar _ = srderr.ErrInvalidInput\n"), ""},
+		{"imports context", id("id.go", "\nimport _ \"context\"\n"), rule},
+		{"imports telemetry", id("key.go", "\nimport _ \"example.com/m/telemetry\"\n"), rule},
+		{"imports dice", id("kind.go", "\nimport _ \"example.com/m/dice\"\n"), rule},
+		{"names PortError", id("entry.go", "\nimport \"example.com/m/srderr\"\n\nvar _ *srderr.PortError\n"), rule},
+		{"context allowed outside the identity files", id("source.go", "\nimport _ \"context\"\n"), ""},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-128, FR-130 - every
+// closed vocabulary type, CreatureSpace and typed id is declared exactly once
+// in the module, in package content.
+// Path: per case.
+func TestVocabularySingleDeclaration(t *testing.T) {
+	t.Parallel()
+	const rule = archtest.RuleVocabulary
+	content := func(files map[string]string) map[string]string {
+		files["content/doc.go"] = "// Package content is a fixture.\npackage content\n"
+		return files
+	}
+	runGuardCases(t, []guardCase{
+		{"declared once in content", content(map[string]string{"content/skill.go": "package content\n\n// Skill is a skill.\ntype Skill int\n"}), ""},
+		{"a typed id declared once", content(map[string]string{"content/ids.go": "package content\n\n// SpellID is an id.\ntype SpellID string\n"}), ""},
+		{"declared twice in content", content(map[string]string{
+			"content/a.go": "package content\n\n// Skill is a skill.\ntype Skill int\n",
+			"content/b.go": "package content\n\n// Skill is a skill.\ntype Skill string\n",
+		}), rule},
+		{"declared in a type group twice", content(map[string]string{
+			"content/a.go": "package content\n\ntype (\n\t// Language is one.\n\tLanguage int\n\t// DamageType is one.\n\tDamageType int\n)\n",
+			"content/b.go": "package content\n\n// DamageType is one.\ntype DamageType int\n",
+		}), rule},
+		{"redeclared in another context", content(map[string]string{
+			"content/a.go": "package content\n\n// Skill is a skill.\ntype Skill int\n",
+			"d20/skill.go": "package d20\n\n// Skill is a skill.\ntype Skill int\n",
+		}), rule},
+		{"declared only outside content", content(map[string]string{"d20/skill.go": "package d20\n\n// Alignment is one.\ntype Alignment int\n"}), rule},
+		{"an unrelated type name", content(map[string]string{"d20/skill.go": "package d20\n\n// Ability is one.\ntype Ability int\n"}), ""},
+		{"a method or field named like a vocabulary type", content(map[string]string{"d20/x.go": "package d20\n\n// T has a field.\ntype T struct{ Skill int }\n"}), ""},
+		{"a test file may reuse the name", content(map[string]string{
+			"content/a.go":      "package content\n\n// Skill is a skill.\ntype Skill int\n",
+			"content/a_test.go": "package content\n\ntype Skill int\n",
+		}), ""},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-130 - the check
+// reports a vocabulary type that has no declaration, so deleting one cannot
+// pass the real-module test.
+// Path: unhappy (missing content).
+func TestMissingVocabulary(t *testing.T) {
+	t.Parallel()
+	m, err := archtest.Load(overlay(map[string]string{"content/doc.go": "// Package content is a fixture.\npackage content\n", "content/s.go": "package content\n\n// Skill is a skill.\ntype Skill int\n"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing := archtest.MissingVocabulary(m)
+	if slices.Contains(missing, "Skill") || !slices.Contains(missing, "DamageType") || len(missing) != len(archtest.VocabularyTypes())-1 {
+		t.Errorf("MissingVocabulary = %v, want every type but Skill", missing)
+	}
+}
+
+// Requirement: doc/specs/content-source-port.md FR-033, FR-049 - the value-type
+// files of the Source port import none of context, embed, testing, contenttest
+// or data and never refer to PortError; contenttest/fake_source.go imports only
+// content and the standard library.
+// Path: per case.
+func TestSourceFiles(t *testing.T) {
+	t.Parallel()
+	const rule = archtest.RuleSourceFiles
+	in := func(dir, name, body string) map[string]string {
+		return map[string]string{
+			dir + "/doc.go":  "// Package " + dir[strings.LastIndex(dir, "/")+1:] + " is a fixture.\npackage " + dir[strings.LastIndex(dir, "/")+1:] + "\n",
+			dir + "/" + name: body,
+		}
+	}
+	val := func(name, imports string) map[string]string {
+		return in("content", name, "package content\n\nimport (\n"+imports+")\n")
+	}
+	fake := func(imports string) map[string]string {
+		return in("content/contenttest", "fake_source.go", "package contenttest\n\nimport (\n"+imports+")\n")
+	}
+	runGuardCases(t, []guardCase{
+		{"catalogue with stdlib and srderr", val("catalogue.go", "\t\"errors\"\n\t_ \"example.com/m/srderr\"\n\t_ \"slices\"\n"), ""},
+		{"lookup result imports context", val("lookup_result.go", "\t_ \"context\"\n"), rule},
+		{"query imports embed", val("query.go", "\t_ \"embed\"\n"), rule},
+		{"catalogue imports testing", val("catalogue.go", "\t_ \"testing\"\n"), rule},
+		{"catalogue imports contenttest", val("catalogue.go", "\t_ \"example.com/m/content/contenttest\"\n"), rule},
+		{"catalogue imports data", val("catalogue.go", "\t_ \"example.com/m/content/data\"\n"), rule},
+		{"query names PortError", in("content", "query.go", "package content\n\nimport \"example.com/m/srderr\"\n\nvar _ *srderr.PortError\n"), rule},
+		{"context is allowed in other content files", val("source.go", "\t_ \"context\"\n"), ""},
+		{"fake imports content", fake("\t_ \"example.com/m/content\"\n\t_ \"slices\"\n"), ""},
+		{"fake imports srderr", fake("\t_ \"example.com/m/content\"\n\t_ \"example.com/m/srderr\"\n"), rule},
+		{"fake imports data", fake("\t_ \"example.com/m/content/data\"\n"), rule},
+		{"other contenttest files may import srderr", in("content/contenttest", "contract.go", "package contenttest\n\nimport _ \"example.com/m/srderr\"\n"), ""},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-073, FR-075 - only the files named decode*.go of
+// package content import encoding/json; no other production file does.
+// Path: per case.
+func TestJSONConfined(t *testing.T) {
+	t.Parallel()
+	const rule = archtest.RuleJSONConfined
+	in := func(files map[string]string) map[string]string {
+		files["content/doc.go"] = "// Package content is a fixture.\npackage content\n"
+		// A decode.go makes FR-099 apply, so the fixture names the 32-bit run.
+		for _, p := range []string{".github/workflows/ci.yml", "AGENTS.md", "doc/specs/release-0-1-0.md"} {
+			files[p] = "GOARCH=386 go test ./content/...\n"
+		}
+		return files
+	}
+	imp := "package content\n\nimport _ \"encoding/json\"\n"
+	runGuardCases(t, []guardCase{
+		{"decode.go", in(map[string]string{"content/decode.go": imp}), ""},
+		{"decode_value.go", in(map[string]string{"content/decode_value.go": imp}), ""},
+		{"another file of content", in(map[string]string{"content/problem.go": imp}), rule},
+		{"a name that only contains decode", in(map[string]string{"content/jsondecode.go": imp}), rule},
+		{"a test file of content", in(map[string]string{"content/problem_test.go": "package content_test\n\nimport _ \"encoding/json\"\n"}), ""},
+		{"another context", in(map[string]string{"d20/x.go": "package d20\n\nimport _ \"encoding/json\"\n"}), rule},
+		{"a decode file of another package", in(map[string]string{"d20/decode.go": "package d20\n\nimport _ \"encoding/json\"\n"}), rule},
+		{"the data package", in(map[string]string{"content/data/doc.go": "// Package data is a fixture.\npackage data\n", "content/data/x.go": "package data\n\nimport _ \"encoding/json\"\n"}), rule},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-141 - in package content only load_usecase.go
+// refers to PortError or to the srderr guard and wrap helpers.
+// Path: per case.
+func TestContentPortUse(t *testing.T) {
+	t.Parallel()
+	const rule = archtest.RuleContentPortUse
+	in := func(name, body string) map[string]string {
+		return map[string]string{
+			"content/doc.go":    "// Package content is a fixture.\npackage content\n",
+			"content/source.go": "package content\n\n// Port names the port.\nconst Port = \"content\"\n",
+			"content/" + name:   "package content\n\nimport \"example.com/m/srderr\"\n\n" + body,
+		}
+	}
+	runGuardCases(t, []guardCase{
+		{"load_usecase.go names PortError and Guard", in("load_usecase.go", "var _ *srderr.PortError\n\nvar _ = srderr.GuardValue[int]\n"), ""},
+		{"another file names PortError", in("decode.go", "var _ *srderr.PortError\n"), rule},
+		{"another file calls Guard", in("set.go", "var _ = srderr.Guard\n"), rule},
+		{"another file calls WrapPort", in("set.go", "var _ = srderr.WrapPort\n"), rule},
+		{"another file calls ContractViolation", in("set.go", "var _ = srderr.ContractViolation\n"), rule},
+		{"another file uses ErrInvalidInput only", in("set.go", "var _ = srderr.ErrInvalidInput\n"), ""},
+		{"a comment may mention PortError", in("set.go", "// Unlike a PortError, this is input failing validation.\nvar _ = srderr.ErrInvalidInput\n"), ""},
+		{"a test file of content", in("set_test.go", "var _ *srderr.PortError\n"), ""},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-075 - package content imports none of os, net and
+// io/fs (A3).
+// Path: per case.
+func TestContentDeniesFileAndNetworkPackages(t *testing.T) {
+	t.Parallel()
+	in := func(imp string) map[string]string {
+		return map[string]string{
+			"content/doc.go": "// Package content is a fixture.\npackage content\n",
+			"content/x.go":   "package content\n\nimport _ \"" + imp + "\"\n",
+		}
+	}
+	runGuardCases(t, []guardCase{
+		{"os", in("os"), archtest.RuleStdlib},
+		{"net", in("net"), archtest.RuleStdlib},
+		{"net/http", in("net/http"), archtest.RuleStdlib},
+		{"io/fs", in("io/fs"), archtest.RuleStdlib},
+		{"io", in("io"), ""},
+		{"bytes", in("bytes"), ""},
+	})
+}
+
+// Requirement: doc/specs/content-schema-and-decoder.md FR-099 - once the decoder exists, the CI workflow,
+// AGENTS.md and the release-0-1-0 spec each name the 32-bit run.
+// Path: per case.
+func TestThirtyTwoBit(t *testing.T) {
+	t.Parallel()
+	const rule = archtest.RuleThirtyTwoBit
+	const cmd = "GOARCH=386 go test ./content/..."
+	base := func() map[string]string {
+		return map[string]string{
+			"content/doc.go":    "// Package content is a fixture.\npackage content\n",
+			"content/decode.go": "package content\n",
+		}
+	}
+	with := func(files map[string]string) map[string]string {
+		out := base()
+		for p, s := range files {
+			out[p] = s
+		}
+		return out
+	}
+	all := map[string]string{".github/workflows/ci.yml": "- run: " + cmd + "\n", "AGENTS.md": "just test-386 # " + cmd + "\n", "doc/specs/release-0-1-0.md": "CI runs `" + cmd + "`.\n"}
+	without := func(name string) map[string]string {
+		out := map[string]string{}
+		for p, s := range all {
+			if p == name {
+				s = "nothing about it\n"
+			}
+			out[p] = s
+		}
+		return with(out)
+	}
+	runGuardCases(t, []guardCase{
+		{"before the decoder exists", map[string]string{"content/doc.go": "// Package content is a fixture.\npackage content\n"}, ""},
+		{"all three name it", with(all), ""},
+		{"the three files are missing", base(), rule},
+		{"ci.yml lacks it", without(".github/workflows/ci.yml"), rule},
+		{"AGENTS.md lacks it", without("AGENTS.md"), rule},
+		{"the release spec lacks it", without("doc/specs/release-0-1-0.md"), rule},
+		{"only the release spec is missing", with(map[string]string{".github/workflows/ci.yml": all[".github/workflows/ci.yml"], "AGENTS.md": all["AGENTS.md"]}), rule},
+	})
 }
