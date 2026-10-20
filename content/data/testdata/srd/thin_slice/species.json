@@ -1,0 +1,71 @@
+{
+  "species": [
+    {
+      "id": "dwarf", "name": "Dwarf", "creatureType": "Humanoid", "sizes": ["Medium"],
+      "sizeText": "Medium (about 4–5 feet tall)", "speed": 30,
+      "traits": [
+        {"name": "Darkvision", "phrases": ["Darkvision with a range of 120 feet"]},
+        {"name": "Dwarven Resilience", "phrases": ["Resistance to Poison damage", "Advantage on saving throws you make to avoid or end the Poisoned condition"]},
+        {"name": "Dwarven Toughness", "phrases": ["Hit Point maximum increases by 1", "it increases by 1 again whenever you gain a level"]},
+        {"name": "Stonecunning", "phrases": ["As a Bonus Action", "Tremorsense with a range of 60 feet for 10 minutes", "You must be on a stone surface or touching a stone surface", "The stone can be natural or worked", "a number of times equal to your Proficiency Bonus", "you regain all expended uses when you finish a Long Rest"]}
+      ]
+    },
+    {
+      "id": "dragonborn", "name": "Dragonborn", "creatureType": "Humanoid", "sizes": ["Medium"],
+      "sizeText": "Medium (about 5–7 feet tall)", "speed": 30,
+      "traits": [
+        {"name": "Draconic Ancestry", "phrases": ["Choose the kind of dragon from the Draconic Ancestors table"]},
+        {"name": "Breath Weapon", "phrases": ["When you take the Attack action on your turn", "replace one of your attacks", "15-foot Cone or a 30-foot Line that is 5 feet wide", "(choose the shape each time)", "Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus)", "takes 1d10 damage of the type determined by your Draconic Ancestry trait", "a creature takes half as much damage", "a number of times equal to your Proficiency Bonus", "you regain all expended uses when you finish a Long Rest"]},
+        {"name": "Damage Resistance", "phrases": ["Resistance to the damage type determined by your Draconic Ancestry trait"]},
+        {"name": "Darkvision", "phrases": ["Darkvision with a range of 60 feet"]},
+        {"name": "Draconic Flight", "phrases": ["When you reach character level 5", "As a Bonus Action", "last for 10 minutes", "or until you retract the wings", "or have the Incapacitated condition", "a Fly Speed equal to your Speed", "you can’t use it again until you finish a Long Rest"]}
+      ]
+    },
+    {
+      "id": "elf", "name": "Elf", "creatureType": "Humanoid", "sizes": ["Medium"],
+      "sizeText": "Medium (about 5–6 feet tall)", "speed": 30,
+      "traits": [
+        {"name": "Darkvision", "phrases": ["Darkvision with a range of 60 feet"]},
+        {"name": "Elven Lineage", "phrases": ["Choose a lineage from the Elven Lineages table", "You gain the level 1 benefit of that lineage", "When you reach character levels 3 and 5", "You always have that spell prepared", "You can cast it once without a spell slot", "you regain the ability to cast it in that way when you finish a Long Rest", "cast the spell using any spell slots you have of the appropriate level", "Intelligence, Wisdom, or Charisma is your spellcasting ability", "(choose the ability when you select the lineage)"]},
+        {"name": "Fey Ancestry", "phrases": ["Advantage on saving throws you make to avoid or end the Charmed condition"]},
+        {"name": "Keen Senses", "phrases": ["proficiency in the Insight, Perception, or Survival skill"]},
+        {"name": "Trance", "phrases": ["You don’t need to sleep", "magic can’t put you to sleep", "finish a Long Rest in 4 hours"]}
+      ]
+    },
+    {
+      "id": "human", "name": "Human", "creatureType": "Humanoid", "sizes": ["Small", "Medium"],
+      "sizeText": "Medium (about 4–7 feet tall) or Small (about 2–4 feet tall), chosen when you select this species", "speed": 30,
+      "traits": [
+        {"name": "Resourceful", "phrases": ["Heroic Inspiration whenever you finish a Long Rest"]},
+        {"name": "Skillful", "phrases": ["proficiency in one skill of your choice"]},
+        {"name": "Versatile", "phrases": ["Origin feat of your choice", "Skilled is recommended"]}
+      ]
+    }
+  ],
+  "draconicAncestors": [
+    {"dragon": "Black", "damageType": "Acid"}, {"dragon": "Blue", "damageType": "Lightning"},
+    {"dragon": "Brass", "damageType": "Fire"}, {"dragon": "Bronze", "damageType": "Lightning"},
+    {"dragon": "Copper", "damageType": "Acid"}, {"dragon": "Gold", "damageType": "Fire"},
+    {"dragon": "Green", "damageType": "Poison"}, {"dragon": "Red", "damageType": "Fire"},
+    {"dragon": "Silver", "damageType": "Cold"}, {"dragon": "White", "damageType": "Cold"}
+  ],
+  "breathWeaponDamage": [
+    {"level": 1, "dice": "1d10"}, {"level": 5, "dice": "2d10"}, {"level": 11, "dice": "3d10"}, {"level": 17, "dice": "4d10"}
+  ],
+  "lineages": [
+    {"name": "Drow", "level1": "The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip.", "level3": "Faerie Fire", "level5": "Darkness", "spells": ["dancing_lights", "faerie_fire", "darkness"]},
+    {"name": "High Elf", "level1": "You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.", "level3": "Detect Magic", "level5": "Misty Step", "spells": ["prestidigitation", "detect_magic", "misty_step"]},
+    {"name": "Wood Elf", "level1": "Your Speed increases to 35 feet. You also know the Druidcraft cantrip.", "level3": "Longstrider", "level5": "Pass without Trace", "spells": ["druidcraft", "longstrider", "pass_without_trace"]}
+  ],
+  "choices": [
+    {"label": "draconic ancestry", "species": "dragonborn", "structured": true, "phrase": "Choose the kind of dragon from the Draconic Ancestors table"},
+    {"label": "breath weapon shape", "species": "dragonborn", "structured": false, "phrase": "15-foot Cone or a 30-foot Line that is 5 feet wide"},
+    {"label": "elven lineage", "species": "elf", "structured": true, "phrase": "Choose a lineage from the Elven Lineages table"},
+    {"label": "lineage spellcasting ability", "species": "elf", "structured": false, "phrase": "Intelligence, Wisdom, or Charisma is your spellcasting ability"},
+    {"label": "keen senses skill", "species": "elf", "structured": false, "phrase": "proficiency in the Insight, Perception, or Survival skill"},
+    {"label": "high elf cantrip replacement", "species": "elf", "structured": false, "phrase": "you can replace that cantrip with a different cantrip from the Wizard spell list"},
+    {"label": "human size", "species": "human", "structured": false, "phrase": "Medium (about 4–7 feet tall) or Small (about 2–4 feet tall)"},
+    {"label": "skillful skill", "species": "human", "structured": false, "phrase": "proficiency in one skill of your choice"},
+    {"label": "versatile feat", "species": "human", "structured": false, "phrase": "Origin feat of your choice"}
+  ]
+}

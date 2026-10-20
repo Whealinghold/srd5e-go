@@ -1,0 +1,22 @@
+{
+  "document": "SRD 5.2.1",
+  "entries": [
+    {"kind": "species", "id": "dragonborn", "section": "Dragonborn", "page": 84},
+    {"kind": "species", "id": "dwarf", "section": "Dwarf", "page": 84},
+    {"kind": "species", "id": "elf", "section": "Elf", "page": 84},
+    {"kind": "species", "id": "human", "section": "Human", "page": 86},
+    {"kind": "characterClass", "id": "wizard", "section": "Wizard", "page": 77},
+    {"kind": "spell", "id": "dancing_lights", "section": "Spell Descriptions", "page": 121},
+    {"kind": "spell", "id": "darkness", "section": "Spell Descriptions", "page": 122},
+    {"kind": "spell", "id": "detect_magic", "section": "Spell Descriptions", "page": 123},
+    {"kind": "spell", "id": "druidcraft", "section": "Spell Descriptions", "page": 126},
+    {"kind": "spell", "id": "faerie_fire", "section": "Spell Descriptions", "page": 129},
+    {"kind": "spell", "id": "fireball", "section": "Spell Descriptions", "page": 131},
+    {"kind": "spell", "id": "fire_bolt", "section": "Spell Descriptions", "page": 132},
+    {"kind": "spell", "id": "longstrider", "section": "Spell Descriptions", "page": 145},
+    {"kind": "spell", "id": "magic_missile", "section": "Spell Descriptions", "page": 146},
+    {"kind": "spell", "id": "misty_step", "section": "Spell Descriptions", "page": 150},
+    {"kind": "spell", "id": "pass_without_trace", "section": "Spell Descriptions", "page": 151},
+    {"kind": "spell", "id": "prestidigitation", "section": "Spell Descriptions", "page": 154}
+  ]
+}

@@ -77,9 +77,12 @@ func main() {
 | `telemetry/telemetrytest` | recording doubles and contract suites |
 | `telemetry/slogtelemetry` | `log/slog` adapter for `telemetry.Logger` |
 | `d20` | ability checks, saving throws and attack rolls |
+| `content` | typed SRD content, `JSONDecoder`, `Loader`, `Source` port, `InMemorySource` |
+| `content/contenttest` | `FakeSource`, `FakeDecoder`, `RunSourceContract`, `RunDecoderContract` |
+| `content/data` | `BundledSource` and the bundled SRD slice (covered by `NOTICE.md`) |
 | `scenarios` | cross-package tests through the public API (tests-only directory; not an importable package) |
 
-Not built yet: `content`, `character`, `combat` and `toolbox` (see [doc/roadmap.md](doc/roadmap.md)).
+Not built yet: `character`, `combat` and `toolbox` (see [doc/roadmap.md](doc/roadmap.md)).
 
 ## Dice and rolling
 
@@ -110,6 +113,27 @@ func TestMyRoller(t *testing.T) {
 	dicetest.RunRollerContract(t, func(t *testing.T) dice.Roller {
 		return mypkg.NewRoller()
 	})
+}
+```
+
+## Game content
+
+The `content` package holds typed SRD 5.2.1 content and the ports that deliver it: the strict `content.JSONDecoder` (reports every problem with its path), the `content.Loader` use case, `content.InMemorySource`, and `content/data`, whose `BundledSource` serves the bundled slice (4 species, the Wizard, 12 spells). Look entries up with `Source.Lookup` and switch over the closed `LookupResult`.
+
+```go
+src, err := data.NewBundledSource()
+res, err := src.Lookup(ctx, content.NewKey(content.KindSpell, content.MustID("fireball")))
+```
+
+### Writing your own `content.Source`
+
+`contenttest.RunSourceContract(t, create, createFailing)` checks that a source honours the port (lookups, ordered lists, and typed failures when the backend breaks); `contenttest.RunDecoderContract` does the same for a `content.Decoder`. Every adapter, including yours, should pass them. The bundled content is covered by [NOTICE.md](NOTICE.md); see "Licence and content" below for the attribution statement.
+
+```go
+func TestMySource(t *testing.T) {
+	contenttest.RunSourceContract(t, func(t *testing.T, entries []content.Entry) content.Source {
+		return mypkg.NewSource(entries)
+	}, nil)
 }
 ```
 
@@ -152,10 +176,18 @@ CI pins golangci-lint at v2.15.0 (`.github/workflows/ci.yml`); use the same vers
 
 - **Code:** MIT. See [LICENSE](LICENSE).
 - **Game content:** rules from the System Reference Document 5.2.1, used under
-  the Creative Commons Attribution 4.0 International License. No SRD content
-  is bundled yet; the attribution in [NOTICE.md](NOTICE.md) takes effect when
-  `content/data/` lands. Nothing outside the SRD is included, and Wizards'
+  the Creative Commons Attribution 4.0 International License. The bundled
+  content lives under `content/data/` and is covered by [NOTICE.md](NOTICE.md),
+  not by the MIT licence. Nothing outside the SRD is included, and Wizards'
   trademarks are not used.
+
+  The attribution the SRD asks for:
+
+  > This work includes material from the System Reference Document
+  > 5.2.1 (“SRD 5.2.1”) by Wizards of the Coast LLC, available at
+  > https://www.dndbeyond.com/srd. The SRD 5.2.1 is licensed under the
+  > Creative Commons Attribution 4.0 International License, available at
+  > https://creativecommons.org/licenses/by/4.0/legalcode.
 
 This package is compatible with fifth edition. It is independent and is not
 published, endorsed or approved by Wizards of the Coast.

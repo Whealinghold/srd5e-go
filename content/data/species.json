@@ -1,0 +1,269 @@
+{
+  "schemaVersion": 1,
+  "species": [
+    {
+      "id": "dragonborn",
+      "name": "Dragonborn",
+      "source": {
+        "document": "SRD 5.2.1",
+        "section": "Dragonborn",
+        "page": 84
+      },
+      "creatureType": "Humanoid",
+      "sizes": [
+        "Medium"
+      ],
+      "sizeText": "Medium (about 5–7 feet tall)",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Draconic Ancestry",
+          "text": "Your lineage stems from a dragon progenitor. Choose the kind of dragon from the Draconic Ancestors table. Your choice affects your Breath Weapon and Damage Resistance traits as well as your appearance."
+        },
+        {
+          "name": "Breath Weapon",
+          "text": "When you take the Attack action on your turn, you can replace one of your attacks with an exhalation of magical energy in either a 15-foot Cone or a 30-foot Line that is 5 feet wide (choose the shape each time). Each creature in that area must make a Dexterity saving throw (DC 8 plus your Constitution modifier and Proficiency Bonus). On a failed save, a creature takes 1d10 damage of the type determined by your Draconic Ancestry trait. On a successful save, a creature takes half as much damage. This damage increases by 1d10 when you reach character levels 5 (2d10), 11 (3d10), and 17 (4d10).\nYou can use this Breath Weapon a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+        },
+        {
+          "name": "Damage Resistance",
+          "text": "You have Resistance to the damage type determined by your Draconic Ancestry trait."
+        },
+        {
+          "name": "Darkvision",
+          "text": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Draconic Flight",
+          "text": "When you reach character level 5, you can channel draconic magic to give yourself temporary flight. As a Bonus Action, you sprout spectral wings on your back that last for 10 minutes or until you retract the wings (no action required) or have the Incapacitated condition. During that time, you have a Fly Speed equal to your Speed. Your wings appear to be made of the same energy as your Breath Weapon. Once you use this trait, you can’t use it again until you finish a Long Rest."
+        }
+      ],
+      "choices": [
+        {
+          "traitName": "Draconic Ancestry",
+          "options": [
+            {
+              "kind": "damageType",
+              "name": "Black",
+              "damageType": "Acid"
+            },
+            {
+              "kind": "damageType",
+              "name": "Blue",
+              "damageType": "Lightning"
+            },
+            {
+              "kind": "damageType",
+              "name": "Brass",
+              "damageType": "Fire"
+            },
+            {
+              "kind": "damageType",
+              "name": "Bronze",
+              "damageType": "Lightning"
+            },
+            {
+              "kind": "damageType",
+              "name": "Copper",
+              "damageType": "Acid"
+            },
+            {
+              "kind": "damageType",
+              "name": "Gold",
+              "damageType": "Fire"
+            },
+            {
+              "kind": "damageType",
+              "name": "Green",
+              "damageType": "Poison"
+            },
+            {
+              "kind": "damageType",
+              "name": "Red",
+              "damageType": "Fire"
+            },
+            {
+              "kind": "damageType",
+              "name": "Silver",
+              "damageType": "Cold"
+            },
+            {
+              "kind": "damageType",
+              "name": "White",
+              "damageType": "Cold"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dwarf",
+      "name": "Dwarf",
+      "source": {
+        "document": "SRD 5.2.1",
+        "section": "Dwarf",
+        "page": 84
+      },
+      "creatureType": "Humanoid",
+      "sizes": [
+        "Medium"
+      ],
+      "sizeText": "Medium (about 4–5 feet tall)",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "text": "You have Darkvision with a range of 120 feet."
+        },
+        {
+          "name": "Dwarven Resilience",
+          "text": "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition."
+        },
+        {
+          "name": "Dwarven Toughness",
+          "text": "Your Hit Point maximum increases by 1, and it increases by 1 again whenever you gain a level."
+        },
+        {
+          "name": "Stonecunning",
+          "text": "As a Bonus Action, you gain Tremorsense with a range of 60 feet for 10 minutes. You must be on a stone surface or touching a stone surface to use this Tremorsense. The stone can be natural or worked.\nYou can use this Bonus Action a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest."
+        }
+      ]
+    },
+    {
+      "id": "elf",
+      "name": "Elf",
+      "source": {
+        "document": "SRD 5.2.1",
+        "section": "Elf",
+        "page": 84
+      },
+      "creatureType": "Humanoid",
+      "sizes": [
+        "Medium"
+      ],
+      "sizeText": "Medium (about 5–6 feet tall)",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Darkvision",
+          "text": "You have Darkvision with a range of 60 feet."
+        },
+        {
+          "name": "Elven Lineage",
+          "text": "You are part of a lineage that grants you supernatural abilities. Choose a lineage from the Elven Lineages table. You gain the level 1 benefit of that lineage.\nWhen you reach character levels 3 and 5, you learn a higher-level spell, as shown on the table. You always have that spell prepared. You can cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest. You can also cast the spell using any spell slots you have of the appropriate level.\nIntelligence, Wisdom, or Charisma is your spellcasting ability for the spells you cast with this trait (choose the ability when you select the lineage)."
+        },
+        {
+          "name": "Fey Ancestry",
+          "text": "You have Advantage on saving throws you make to avoid or end the Charmed condition."
+        },
+        {
+          "name": "Keen Senses",
+          "text": "You have proficiency in the Insight, Perception, or Survival skill."
+        },
+        {
+          "name": "Trance",
+          "text": "You don’t need to sleep, and magic can’t put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness."
+        }
+      ],
+      "choices": [
+        {
+          "traitName": "Elven Lineage",
+          "options": [
+            {
+              "kind": "lineage",
+              "name": "Drow",
+              "levelBenefits": [
+                {
+                  "level": 1,
+                  "text": "The range of your Darkvision increases to 120 feet. You also know the Dancing Lights cantrip.",
+                  "spellId": "dancing_lights"
+                },
+                {
+                  "level": 3,
+                  "text": "Faerie Fire",
+                  "spellId": "faerie_fire"
+                },
+                {
+                  "level": 5,
+                  "text": "Darkness",
+                  "spellId": "darkness"
+                }
+              ]
+            },
+            {
+              "kind": "lineage",
+              "name": "High Elf",
+              "levelBenefits": [
+                {
+                  "level": 1,
+                  "text": "You know the Prestidigitation cantrip. Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.",
+                  "spellId": "prestidigitation"
+                },
+                {
+                  "level": 3,
+                  "text": "Detect Magic",
+                  "spellId": "detect_magic"
+                },
+                {
+                  "level": 5,
+                  "text": "Misty Step",
+                  "spellId": "misty_step"
+                }
+              ]
+            },
+            {
+              "kind": "lineage",
+              "name": "Wood Elf",
+              "levelBenefits": [
+                {
+                  "level": 1,
+                  "text": "Your Speed increases to 35 feet. You also know the Druidcraft cantrip.",
+                  "spellId": "druidcraft"
+                },
+                {
+                  "level": 3,
+                  "text": "Longstrider",
+                  "spellId": "longstrider"
+                },
+                {
+                  "level": 5,
+                  "text": "Pass without Trace",
+                  "spellId": "pass_without_trace"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "human",
+      "name": "Human",
+      "source": {
+        "document": "SRD 5.2.1",
+        "section": "Human",
+        "page": 86
+      },
+      "creatureType": "Humanoid",
+      "sizes": [
+        "Small",
+        "Medium"
+      ],
+      "sizeText": "Medium (about 4–7 feet tall) or Small (about 2–4 feet tall), chosen when you select this species",
+      "speed": 30,
+      "traits": [
+        {
+          "name": "Resourceful",
+          "text": "You gain Heroic Inspiration whenever you finish a Long Rest."
+        },
+        {
+          "name": "Skillful",
+          "text": "You gain proficiency in one skill of your choice."
+        },
+        {
+          "name": "Versatile",
+          "text": "You gain an Origin feat of your choice (see “Feats”). Skilled is recommended."
+        }
+      ]
+    }
+  ]
+}

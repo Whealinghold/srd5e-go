@@ -1,0 +1,39 @@
+{
+  "id": "wizard", "name": "Wizard",
+  "primaryAbility": "intelligence", "hitPointDie": "D6", "savingThrows": ["intelligence", "wisdom"],
+  "skills": {"picks": 2, "options": ["Arcana", "History", "Insight", "Investigation", "Medicine", "Nature", "Religion"]},
+  "weapons": ["Simple"], "armorTraining": [],
+  "equipmentA": {"items": [["Dagger", 2], ["Arcane Focus (Quarterstaff)", 1], ["Robe", 1], ["Spellbook", 1], ["Scholar’s Pack", 1]], "gold": 5},
+  "equipmentB": {"items": [], "gold": 55},
+  "spellcastingAbility": "intelligence",
+  "features": [
+    {"name": "Spellcasting", "level": 1}, {"name": "Ritual Adept", "level": 1}, {"name": "Arcane Recovery", "level": 1},
+    {"name": "Scholar", "level": 2}, {"name": "Wizard Subclass", "level": 3, "fact": "grantsSubclass"},
+    {"name": "Ability Score Improvement", "level": 4, "fact": "grantsFeat General"}, {"name": "Memorize Spell", "level": 5},
+    {"name": "Spell Mastery", "level": 18}, {"name": "Epic Boon", "level": 19, "fact": "grantsFeat Epic Boon"},
+    {"name": "Signature Spells", "level": 20}
+  ],
+  "spellcastingPhrases": ["Light, Mage Hand, and Ray of Frost are recommended", "You know three Wizard cantrips of your choice"],
+  "printedRows": [
+    "1 +2 Spellcasting, Ritual Adept, Arcane Recovery 3 4 2 — — — — — — — —",
+    "2 +2 Scholar 3 5 3 — — — — — — — —",
+    "3 +2 Wizard Subclass 3 6 4 2 — — — — — — —",
+    "4 +2 Ability Score Improvement 4 7 4 3 — — — — — — —",
+    "5 +3 Memorize Spell 4 9 4 3 2 — — — — — —",
+    "6 +3 Subclass feature 4 10 4 3 3 — — — — — —",
+    "7 +3 — 4 11 4 3 3 1 — — — — —",
+    "8 +3 Ability Score Improvement 4 12 4 3 3 2 — — — — —",
+    "9 +4 — 4 14 4 3 3 3 1 — — — —",
+    "10 +4 Subclass feature 5 15 4 3 3 3 2 — — — —",
+    "11 +4 — 5 16 4 3 3 3 2 1 — — —",
+    "12 +4 Ability Score Improvement 5 16 4 3 3 3 2 1 — — —",
+    "13 +5 — 5 17 4 3 3 3 2 1 1 — —",
+    "14 +5 Subclass feature 5 18 4 3 3 3 2 1 1 — —",
+    "15 +5 — 5 19 4 3 3 3 2 1 1 1 —",
+    "16 +5 Ability Score Improvement 5 21 4 3 3 3 2 1 1 1 —",
+    "17 +6 — 5 22 4 3 3 3 2 1 1 1 1",
+    "18 +6 Spell Mastery 5 23 4 3 3 3 3 1 1 1 1",
+    "19 +6 Epic Boon 5 24 4 3 3 3 3 2 1 1 1",
+    "20 +6 Signature Spells 5 25 4 3 3 3 3 2 2 1 1"
+  ]
+}
