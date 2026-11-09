@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | implemented through step 7 (code, scenarios, examples, README, changelog, roadmap). No spec is `implemented`: each stays `partially implemented` with its own "Not yet implemented" line. Remaining: the manual fidelity review of every long text against the PDF (thin-slice FR-079), and the mutation run recorded by its own phase |
+| Status | accepted as done by the maintainer on 2026-10-31 (their words in the session: "I think this can count as done") as a waiver of the testing.md section 8 mutation gate for the files named below (not a pass of it), with the open items below; implemented through step 7 (code, scenarios, examples, README, changelog, roadmap). No spec is `implemented`: each stays `partially implemented` with its own "Not yet implemented" line. Open: a reviewer to compare every long text of the 17 bundled entries with the SRD PDF (thin-slice FR-079); mutation testing of the per-kind entry and decoder files; and the files at or below the gomu gate: `decode_number.go`, `load_usecase.go` and `catalogue.go` (below 80), `validate_set.go` (exactly 80.0, borderline) and, unmeasured as gomu scores, `class_ability.go`, `class_feature.go` and `class_entry.go` (killed/total under 80% in the partial run, not investigated) (section 11) |
 | Roadmap phase | 2 ([../roadmap.md](../roadmap.md)) |
 | Specs sequenced | [content-schema-and-decoder](../specs/content-schema-and-decoder.md), [content-source-port](../specs/content-source-port.md), [content-species-backgrounds-feats](../specs/content-species-backgrounds-feats.md), [content-classes](../specs/content-classes.md), [content-equipment](../specs/content-equipment.md), [content-magic-items](../specs/content-magic-items.md), [content-monsters](../specs/content-monsters.md), [spell-effect-data](../specs/spell-effect-data.md), [content-spells](../specs/content-spells.md), [content-thin-slice](../specs/content-thin-slice.md), [content-licensing-and-notice](../specs/content-licensing-and-notice.md) (NOTICE part only) |
 | Depends on | Phases 0 and 1 (kernel packages, `telemetry`, `srderr`, `internal/archtest`, `d20` as the use-case template) |
@@ -537,3 +537,148 @@ retraction; a consumer can fall back to a host-supplied `InMemorySource`.
 - Persistent-spell-zones fact table Z (a `combat` spec) is cited by
   spell-effect-data FR-050; the zone types ship here, the pilot table is a
   fixture only.
+
+## 11. Mutation results (2026-10-31)
+
+`just mutate ./content/<file>.go`, one file at a time (gomu v0.2.1, capped
+Docker, `testing.md` section 8). The gate is gomu's own score, 80. A run of the
+whole package was started and stopped after 9 of 130 files (about 10 minutes a
+file, about 20 hours in all), so the table below is per file. Run 1 is that
+partial package run; run 2 is the per-file runs.
+
+gomu counts a timed-out mutant (usually a loop turned into an infinite loop,
+which the tests catch) against its score. The "timeouts caught" column is for
+information only and is not the gate.
+
+### Run 2: per-file results
+
+| File | gomu score (gate 80) | Timeouts caught | Survivors | Disposition |
+|---|---|---|---|---|
+| `decode.go` | 91.8% | 94.8% | 5 | pass; all equivalent (below) |
+| `decode_value.go` | 87.7% | 89.5% | 17 | pass; all equivalent (below) |
+| `decode_node.go` | 87.7% | 92.3% | 17 | pass (re-run after the fixes); 1 real gap fixed earlier (the pair-backslash test; `problem.go` had the other), the rest equivalent or gomu misreports (`hex4` `*=` to `/=` is killed when applied by hand) |
+| `decode_number.go` | 44.9% | 91.9% | 11 | **below the gate as gomu scores it**; 64 timeouts, 11 equivalent survivors |
+| `load_usecase.go` | 74.7% | 97.3% | 2 | **below the gate as gomu scores it**; 17 timeouts, 2 equivalent survivors |
+| `validate_set.go` | 80.0% | 80.0% | 3 | at the gate on one run; testing.md calls scores near 80 noisy, so treat as borderline; the 3 survivors are `0 -> 0` (2) and `len == 0` to `<=` (1), all equivalent |
+| `id.go` | 94.8% | 94.8% | 4 | pass; all equivalent |
+| `problem.go` | 96.0% | 96.0% | 1 | pass (re-run after the fix); the survivor is `cut > 0` to `!= 0`, equivalent because a length is never negative |
+| `equal.go` | 94.4% | 99.0% | 1 | pass; equivalent |
+| `set.go`, `source_citation.go`, `reference.go` | 100% | 100% | 0 | pass |
+| `catalogue.go` | 71.4% | 71.4% | 4 | **below the gate as gomu scores it**; 2 gomu misreports, 2 equivalent |
+
+Three files stay below 80 as gomu scores them. Each is justified per mutant
+below, which `testing.md` allows only for provably equivalent mutants; the
+timeout mutants of `decode_number.go` and `load_usecase.go` are not provable
+here and the gate is not met for them until the run is repeated with a longer
+`--timeout` or the rule is amended to count timeouts as caught.
+
+### How the survivors were judged
+
+Line numbers below are approximate: they moved by one during this review, so read them with the file or function named. Every survivor was applied by hand to the source and `go test ./content` was
+run; the file was then restored from a backup copy.
+
+- **Fixed (2 real gaps):** the surrogate-pair condition in `unquote` (`decode_node.go`), `body[i] == '\\'` to
+  `<=`, accepted `\ud83dAuDE00` as a valid pair (new row in
+  `decode_internal_test.go`); `problem.go:103`, `cut > 0` to `>=`, panicked on a
+  path of continuation bytes (new case in the same file's path test). Both new
+  tests fail against their mutant and pass on the real code.
+- **gomu misreports (the tests do fail when the exact mutant is applied):**
+  `catalogue.go:56` (two mutants) and `decode_number.go:42`, `i >= 0` to
+  `false`.
+- **The surrogate-pair condition in `unquote` (`decode_node.go`, in `unquote`), checked at the exact operator:** of nine mutants,
+  `i+6 <= len` to `<` or `>=`, `body[i] == '\\'` to `!=` or `>=`, `body[i+1] == 'u'` to
+  `!=` or `<=`, and the first `&&` to `||` are killed by existing tests (and
+  `body[i] <= '\\'` by the new `\ud83dAuDE00` row; the new `\ud83d\nDE00` row also pins the `u` test). Three survive and are equivalent:
+  `r < 0xDC00` to `!=` or `<=` (a unit at or above 0xDC00 is never a high
+  surrogate, so `utf16.DecodeRune` returns U+FFFD and the pair is not taken),
+  and `body[i+1] >= 'u'` (after a backslash in valid JSON, `u` is the only
+  escape letter that is not below it).
+- **Method limit for the other lines:** the hand check replaced the first
+  matching operator on the line, so on a line with a repeated operator (for
+  example `decode.go:189`) it may not have been the site gomu mutated. A
+  "killed" result on such a line is not counted as a misreport; the line is
+  listed as equivalent only where its source comment or the reasoning below
+  stands on its own.
+- **Marked equivalent by a comment in the source (the comment is the evidence; not re-verified here):**
+  `decode.go:189, :241`; `decode_value.go:21, :32`; `decode_node.go:35, :155,
+  :158`, the `utf16.DecodeRune` pair line in `unquote` and the `hex4` digit case; `validate_set.go:99`; `id.go:69, :75, :78, :99`;
+  `equal.go:8`; `decode_number.go:67, :96`; `load_usecase.go:200, :230`.
+- **Equivalent, judged here (a length or a position is never negative, a
+  constant is replaced by itself, or the input is already valid JSON):**
+  `decode.go:186, :205`; `0 -> 0` and `"" -> ""` at `decode_value.go:144-232`,
+  `decode_number.go:63, :70, :72, :82`, `validate_set.go:121, :124`;
+  `decode_value.go:83` and `decode_node.go:83, :111` (a node is never
+  `nodeInvalid`, the only kind below `nodeObject`); `decode_value.go:205`
+  (`numberTooLarge` is the highest class); `decode_value.go:351` (a JSON bool
+  starts with `t` or `f`); `decode_node.go:165` (given that `json.Valid` has already accepted the document, every escape other than
+  `u` sorts below `u`); the `hex4` upper-case hex case in `decode_node.go` (`hex4` only sees validated hex);
+  `catalogue.go:14, :37`. (`decode_number.go:42` has two mutants with two dispositions: `i >= 0` to `false` is a gomu misreport, listed above; `i >= 0` to `i > 0` is equivalent, because a valid JSON number never starts with `e`.)
+- **Output-equivalent but not asserted (they bound work, not results):**
+  `decode_value.go:226` (the count stops at `hi`) and `:359` (an early return
+  once the problem cap is reached). The tests do not measure the work done.
+  `decode_value.go:349` (`false -> true`): callers that ignore the second result
+  (`decode_spell.go:48, :58`, `decode_equipment.go:466`, `decode_class.go:420`)
+  still get a `wrongType` problem recorded, and a reported problem drops the
+  entry, so the swapped value never reaches a result. `decode_node.go:73` is the
+  failure branch of `nextValue`, unreachable because `json.Valid` has accepted
+  the data (the function's own comment says so).
+
+### Run 1: partial package run (9 files, alphabetical)
+
+Killed of total mutants per file, from the run log: `alignment.go` 3/4,
+`background.go` 89/92, `block_error.go` 23/23, `catalogue.go` 10/18 (re-run in
+run 2), `class_ability.go` 15/20, `class_check.go` 133/156,
+`class_definition.go` 148/159, `class_entry.go` 70/101, `class_feature.go`
+91/149. Together 582 of 722 mutants (not a gate score). These ratios are killed over all mutants,
+not-viable ones included, so they are lower than gomu's score for the same file
+and are not scores against the gate. The log printed no per-file gomu scores.
+Three files have a killed/total ratio under 80% and were not investigated:
+`class_feature.go` (61.1%), `class_entry.go` (69.3%) and `class_ability.go`
+(75.0%). Their gomu scores are unmeasured and may pass; re-running each with
+`just mutate ./content/<file>.go` is the open work. `alignment.go` (3 of 4) is
+too small to read.
+
+### Not run
+
+The per-kind entry and decoder files (`monster*`, `equipment*`, `species*`,
+`spell*`, `decode_spell_effects.go` and similar).
+
+## 12. Exact-site survivor record (2026-10-31)
+
+gomu's history gives each mutant's line, column and operator, and the column is
+where the mutated expression starts. Each survivor of the run-2 files below was
+applied at that exact site (a throwaway tool parsed the file with `go/ast`) in a
+scratch copy of the repository, and `go test ./content` was run. "Survives" means
+the whole content suite still passed, which is what an equivalent mutant does;
+"killed" means a test failed, so gomu misreported it. Positions are `line:column`
+in the files as they stand at the time of writing; they drift with edits, and the
+operator and expression are given so a mutant can be found again.
+
+Killed when applied at the exact site (gomu misreports, not gaps):
+
+- `decode_number.go` 42:2 `i >= 0` to `false`
+- `catalogue.go` 56:2 `err != nil` to `false`; 56:5 `!=` to `==`
+- `decode_node.go` 213:3 `*=` to `/=` (in `hex4`); 83:6 `!=` to `>` (in `elements`)
+
+Survive when applied at the exact site (each is judged equivalent in section 11):
+
+- `decode.go`: `L186:7 > -> !=`, `L189:27 == -> <=`, `L205:33 > -> !=`, `L241:7 == -> >`, `L241:7 == -> >=`
+- `decode_value.go`: `L205:7 == -> >=`, `L21:5 >= -> ==`, `L226:3 count > hi -> false`, `L32:5 < -> !=`, `L351:9 == -> >=`, `L359:3 d.probs.full() -> false`, `L83:5 != -> >`
+- `decode_node.go`: `L111:5 != -> >`, `L155:14 < -> !=`, `L158:16 != -> <`, `L158:39 != -> >`, `L165:6 != -> <`, `L178:59 == -> >=`, `L178:6 < -> !=`, `L178:6 < -> <=`, `L179:57 != -> >`, `L215:8 >= -> !=`, `L215:8 >= -> >`, `L219:8 && -> ||`, `L83:6 != -> <`
+- `decode_number.go`: `L42:37 >= -> >`, `L67:23 + -> *`, `L67:23 + -> -`, `L67:23 + -> /`, `L96:14 < -> !=`, `L96:31 < -> <=`
+- `load_usecase.go`: `L200:7 > -> !=`, `L230:7 > -> !=`
+- `validate_set.go`: `L99:5 == -> <=`
+- `id.go`: `L69:5 == -> <=`, `L75:14 < -> !=`, `L78:18 == -> <=`, `L99:36 == -> <=`
+- `problem.go`: `L103:7 > -> !=`
+- `equal.go`: `L8:5 == -> <=`
+- `catalogue.go`: `L37:29 == -> >=`
+
+Not applicable (the mutant replaces a constant or string with itself, or is a
+return value no caller reads; no source change to test): `decode_number.go` 63:3,
+70:3, 72:3, 82:3; `validate_set.go` 121:3, 124:4; `decode_value.go` 144:3, 149:3,
+158:3, 162:3, 199:3, 210:2, 221:3, 232:3, 349:3; `catalogue.go` 14:46;
+`decode_node.go` 140:3, 73:3.
+
+Survival under this check shows that no existing test distinguishes the mutant.
+That is evidence of equivalence only together with the reason given in section 11
+for each; it does not prove it.
