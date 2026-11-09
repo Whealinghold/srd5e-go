@@ -2,10 +2,23 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `content-schema-and-decoder.md`, `content-source-port.md`, `content-equipment.md`, `content-classes.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `dice-and-rolls.md`, `d20-tests.md`, `resolve-d20-test-use-case.md`, `derived-stats.md`, `character-aggregate.md`, `errors-and-results.md`, `observability-ports.md` |
+
+**Implementation status.** Implemented in package `character` (tests named after the source files). Files: `weapon_proficiency.go`, `weapon_mastery_choice.go`, `weapon_wielding.go` (`Grip`, `HandState`, `LoadingState`, `TwoHandedExemption`, `AmmunitionSupply`, `WeaponWielding`, `ReachInFeet`, `OpportunityAttackReach`), `weapon_attack_plan.go`, `weapon_light_attack.go`, `weapon_mastery_offer.go` and the use case `topple_save_usecase.go`; the signal names are in `signals.go`. Every id of section 4 has a test over synthetic `Weapon` fixtures that carry the case-table numbers. Spec corrections made while implementing, all decided in the code:
+
+- **Errors are `invalidInput` errors, not an `*InvalidError` type.** The package has no `InvalidError`; every constructor, `Expend`-style precondition and `OfferMastery` returns an error matching `srderr.ErrInvalidInput` whose text names the argument (`properties`, `allowedCount`, `feet`, `ability`, `damageDealt`, ...), as the rest of `character` does. The `MustX` helpers panic with that error.
+- **Accessors and exported fields.** Values holding a slice or needing a guarantee (`WeaponMasteryChoice`, `WeaponAttackPlan`, `WeaponTurnState`, `AmmunitionSupply`, `ReachInFeet`, `ToppleOffer`, `CleaveTargetPlacement`) have unexported fields and accessors; small result variants (`WeaponAttackPlanned{Plan}`, `WeaponAttackPlanBlocked{Reason}`, `LightExtraAttackAllowed`, `GrazeOffer`, `CleaveOffer`, `MasteryNone`, `PushDistanceAccepted`, `ToppleSaveDetail`, ...) have exported fields built with keyed literals. `SapOffer`, `SlowOffer` and `VexOffer` are empty structs whose `Circumstance`, `Reduction` and `Expiries` methods return fresh values, so they hold no slice.
+- **Enum constants carry the type prefix** (`MasteryProblemWrongCount`, `AttackBlockedNoAmmunition`, `LightBlockedSameLightWeapon`, `MasteryNoneTargetTooLarge`, `GripTwoHanded`, `HandStateNoFreeHand`, `LoadingAlreadyFiredThisActivation`, `TwoHandedExemptionApplies`, `AddModifierAlways`, ...); `String()` returns the short name. The zero value of `Grip`, `HandState`, `LoadingState` and `TwoHandedExemption` reads as one hand, a free hand, ready and no exemption.
+- **`ExtraAttackDamageEffectActive()` is the value `ExtraAttackDamageEffectActive{}`**, a variant of `ExtraAttackDamageSource` next to `NoExtraAttackDamageEffect{}`; a nil source reads as `NoExtraAttackDamageEffect`.
+- **`CategoryProficiency(category)` is a conversion**: `type CategoryProficiency content.WeaponCategory`. `NewWeaponProficiencies(rules...)` builds `WeaponProficiencies`.
+- **`ValidateTarget` takes the reach with the weapon** (`OpportunityAttackReach`), the host's figure; a zero `ReachInFeet` reads as 5 feet. `WeaponMasteryAccessFor(FeatureStates)` is added to read the slot of FR-123 (absent gives `NoMasteryFeature`).
+- **FR-111 outcome.** The shared `operationRun.finish` records `srd5e.outcome` `failure` for `target_prone` as well as for `rejected` and `content_missing`; `target_resisted` is `success`. Neither sets the error status.
+- **Unreachable errors.** A `d20.NewRoll`, `d20.ResolveCheck` or `d20.FailWithoutRoll` error cannot happen after `dice.Roll` vouched for the faces; `ResolveToppleSave` returns it unrecorded rather than panic (the architecture rule allows a panic only in a `Must*` function).
+
+Not yet implemented: the data rows that need the bundled Weapons table, deferred to the Phase 5 equipment data: the part of FR-001 that every bundled weapon yields one mastery property, and the counts of FR-008 (14 Simple, 24 Martial weapons).
 
 Whole spec is `character` (package `github.com/Whealinghold/srd5e-go/character`, files `weapon_*.go`, `mastery_*.go`, `topple_save_usecase.go`; `shared-types-and-ownership.md` FR-016, FR-013, FR-014; type phase 3, see [../roadmap.md](../roadmap.md)). Consumers: `class-barbarian.md`, `class-fighter.md`, `class-paladin.md`, `class-ranger.md`, `class-rogue.md` (Weapon Mastery choice and access), `class-monk.md` (Light facts). `combat` maps this spec's plan and offers onto its own types (`attacks.md`, `combat-action-resolution.md` Q-36, `encounter-aggregate.md`); this spec does not depend on them.
 

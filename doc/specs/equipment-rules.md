@@ -2,11 +2,15 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | Types 3; bulk data 5 |
 | Depends on | `content-equipment.md`, `content-schema-and-decoder.md`, `content-spells.md`, `ability-scores.md`, `modifiers-and-advantage.md` |
 
+
+**Implementation status.** Implemented in package `character` (`equipment_*.go`, tests named after the source files): FR-001 to FR-026, FR-028 to FR-063, FR-066, FR-067, FR-069, FR-070 to FR-079, FR-084. FR-058 to FR-062 and FR-070 are enforced by the general `internal/archtest` checks and by `internal/archtest/equipment_rules_test.go`. Spec corrections made while implementing, all decided in the code: `DeriveBarding` returns `(Barding, error)` (FR-027 is unreachable, below); `IsAvailable` and `TotalCost` are value-receiver methods of `SpellcastingServices` that use no table state (so they work on the zero value) instead of package functions, which would put two generic names in package `character`; `BaseArmorClass` takes an `ability.Modifier`; the enum members carry their type's prefix (`CraftingGenericRule`, `NotCraftablePriceVaries`, `NotAbundant`, `Abundant`); a `ScrollScribing` or `SpellcastingServices` row whose range is inverted covers nothing (`content` already rejects one).
+
+Not yet implemented: FR-064, FR-065, FR-068 (need the Phase 5 equipment data; `scenarios/equipment_rules_test.go` lands with it). FR-027 (`BardingWeightUnknown`) cannot arise: `content.NewArmor` takes a concrete `Weight`, never `NoWeight` or `WeightVaries`, so an Armor always has a weight; the variant and `BardingOutcome` are not exported until a source of an unknown weight exists.
 
 ## 1. Purpose and scope
 
@@ -93,7 +97,7 @@ page. Package-design rules: `doc/rules/architecture.md`, `observability.md`,
 | Creature Size | `CreatureSize` | `content-schema-and-decoder.md` (FR-109; shared-types-and-ownership.md FR-005, FR-046); initiative-and-actions.md FR-092 forbids a second definition. Small and Medium share a row. |
 | Speed rule of the Carrying Capacity entry | `LoadAssessment` (`LoadWithinCarry`, `LoadSpeedLimited`, `LoadBeyondDragLiftPush`) | `LoadSpeedLimited` carries the 5-foot limit only; applying it is `LoadSpeedRules.Limit`. |
 | Mounts and Cargo; Mounts and Other Animals, Carrying Capacity | `DrawnLoad`; `Mount.CarryingCapacityPounds` (content-owned) | Five times the animals' base carrying capacity, vehicle included (p. 100). |
-| Barding | `Barding`, `BardingOutcome` (`BardingDerived`, `BardingWeightUnknown`) | Four times the cost, twice the weight (p. 100). |
+| Barding | `Barding` | Four times the cost, twice the weight (p. 100). |
 | Ship Repair | `ShipRepair`, `ShipRepairOutcome` (`ShipRepairQuoted`, `ShipRepairExceedsShip`), `SuppliesAndLabor` (`notAbundant`, `abundant`) | 1 Hit Point per day and 20 GP; halved "where supplies and skilled labor are abundant, such as a city shipyard" (p. 101). |
 | Crafting Nonmagical Items | `Crafting`, `CraftingOutcome` (`CraftingRequirements`, `NotCraftable`), `NotCraftableReason` | Tools, Raw Materials, Time (p. 103); `days` counts "working 8 hours a day", need not be consecutive. The Copper Piece rounding unit and the fractional-GP reading of Time are package-design interpretations of a silent SRD (Q15); the Potion of Healing `craftingOverride` is content data (FR-041). |
 | Scribing Spell Scrolls, Spell Scroll Costs; Spellcasting Services | `ScrollScribing`; `SpellcastingServices` | Ten `SpellScrollCost` rows (p. 103); seven `SpellcastingService` rows (p. 102); the class of that name in content-equipment.md is withdrawn (content-equipment.md Q18). |
@@ -177,7 +181,7 @@ FR-104), so no `character` spec is imported (FR-070).
 | Id | Requirement | Source | Path |
 |---|---|---|---|
 | FR-026 | `DeriveBarding(Armor armor)` MUST return `BardingDerived` holding a `Barding` costing four times the armor's cost in the same Coin and weighing twice its weight, for every armor on the Armor table including the Shield (Q9). All "Barding" rows MUST hold. | SRD 5.2.1, "Barding", p. 100 | happy |
-| FR-027 | An armor whose weight is `NoWeight` or `WeightVaries` MUST give `BardingWeightUnknown` carrying the armor's id: no throw, no guessed weight. | SRD 5.2.1, "Barding" ("twice as much"), p. 100; architecture.md section 6 | unhappy (missing content) |
+| FR-027 | **Not applicable (spec defect):** `content.Armor` holds a concrete `Weight`, so the case cannot arise (see Implementation status). Original text: an armor whose weight is `NoWeight` or `WeightVaries` MUST give `BardingWeightUnknown` carrying the armor's id: no throw, no guessed weight. | SRD 5.2.1, "Barding" ("twice as much"), p. 100; architecture.md section 6 | unhappy (missing content) |
 | FR-028 | `Barding` MUST be a value object (comparable with `==`: equal cost and weight) keeping the printed cost form (4 x 1,500 GP is 6,000 GP, not 600,000 CP). | architecture.md section 3; SRD 5.2.1, "Barding", p. 100 | unhappy (rule interaction) |
 
 ### Ship repair
@@ -187,7 +191,7 @@ FR-104), so no `character` spec is imported (FR-070).
 | FR-029 | `QuoteShipRepair(hitPoints int, supplies SuppliesAndLabor)` with `notAbundant` MUST return 20 GP and one day per Hit Point, time in `HalfDays` (2 per Hit Point). All "Ship repair" rows MUST hold. | SRD 5.2.1, "Ship Repair" ("1 day and costs 20 GP"), p. 101 | happy |
 | FR-030 | With `abundant` cost and time MUST both be halved: 10 GP and 1 `halfDay` per Hit Point, so halving never rounds. | SRD 5.2.1, "Ship Repair" ("the repair time and cost are halved"), p. 101 | unhappy (boundary) |
 | FR-031 | `hitPoints` below 1 MUST return an error satisfying `errors.Is(err, srderr.ErrInvalidInput)`. | SRD 5.2.1, "Ship Repair" ("Repairing 1 Hit Point of damage"), p. 101 | unhappy (invalid input) |
-| FR-032 | `QuoteShipRepairFor(ship content.AirborneOrWaterborneVehicle, hitPoints int, supplies SuppliesAndLabor)` MUST return `ShipRepairQuoted` (the `ShipRepair` of FR-029/FR-030) for `hitPoints` up to and including the ship's Hit Points, and `ShipRepairExceedsShip` (requested and ship Hit Points) above them; below 1 is FR-031. **Package design:** the SRD states no upper bound (the damage taken is unknown here), so the ship's Hit Points from the Vehicles table bound it; a caller who knows the real damage uses `ShipRepair.Of`. | Package design; SRD 5.2.1, Airborne and Waterborne Vehicles table (HP), p. 101 (the figure only) | unhappy (boundary) |
+| FR-032 | `QuoteShipRepairFor(ship content.AirborneOrWaterborneVehicle, hitPoints int, supplies SuppliesAndLabor)` MUST return `ShipRepairQuoted` (the `ShipRepair` of FR-029/FR-030) for `hitPoints` up to and including the ship's Hit Points, and `ShipRepairExceedsShip` (requested and ship Hit Points) above them; below 1 is FR-031. **Package design:** the SRD states no upper bound (the damage taken is unknown here), so the ship's Hit Points from the Vehicles table bound it; a caller who knows the real damage uses `QuoteShipRepair`. | Package design; SRD 5.2.1, Airborne and Waterborne Vehicles table (HP), p. 101 (the figure only) | unhappy (boundary) |
 
 ### Crafting Nonmagical Items
 
@@ -332,7 +336,6 @@ Entry: armor (cost; weight): expected cost; weight.
 | table | Padded Armor (5 GP; 8 lb.): 20 GP; 16 lb.<br>Leather Armor (10 GP; 10 lb.): 40 GP; 20 lb.<br>Chain Shirt (50 GP; 20 lb.): 200 GP; 40 lb.<br>Half Plate Armor (750 GP; 40 lb.): 3,000 GP; 80 lb. | happy |
 | most expensive | Plate Armor (1,500 GP; 65 lb.): 6,000 GP; 130 lb. | unhappy (boundary) |
 | rule interaction | Shield, on the Armor table (Q9) (10 GP; 6 lb.): 40 GP; 12 lb.<br>coin kept (FR-028), Studded Leather Armor (45 GP; 13 lb.): 180 GP; 26 lb. (not 18,000 CP) | unhappy (rule interaction) |
-| no weight (FR-027) | synthetic armor, `NoWeight` (10 GP; none): `BardingWeightUnknown` (armor id) | unhappy (missing content) |
 
 ### Cases: Ship repair (FR-029 to FR-032; "Ship Repair" and Vehicles table, p. 101: Rowboat 50 HP, Sailing Ship 300 HP)
 
@@ -443,7 +446,7 @@ Go naming: enum members are exported typed constants of their enum type (a membe
 `go
 // package character, files equipment_*.go (indicative signatures)
 type ArmorRules struct{}                                                       // stateless; zero value ready
-func (ArmorRules) BaseArmorClass(rule content.BaseRule, dexterity modifier.Modifier) ArmorBase // FR-001..FR-006
+func (ArmorRules) BaseArmorClass(rule content.BaseRule, dexterity ability.Modifier) ArmorBase // FR-001..FR-006
 func (ArmorRules) SpeedPenaltyFeet(armor content.Armor, strength ability.Score) int            // FR-007..FR-010
 func (ArmorRules) StealthCircumstances(worn []content.Armor) []modifier.RollCircumstance       // FR-079: nil or [Disadvantage], fresh slice
 
@@ -480,7 +483,7 @@ func (DrawnLoad) LimitPounds(animals []content.Mount) int
 func (DrawnLoad) CanMove(animals []content.Mount, vehiclePounds, cargoPounds int) (bool, error)
 
 type Barding struct{ /* Cost() content.Cost; Weight() content.Weight */ }       // FR-026..FR-028
-func DeriveBarding(armor content.Armor) BardingOutcome                         // BardingDerived{Barding} | BardingWeightUnknown{ArmorID}
+func DeriveBarding(armor content.Armor) (Barding, error)                       // error: invalid armor or a cost out of range
 
 type SuppliesAndLabor int                                                      // NotAbundant, Abundant (typed enum with String())
 type ShipRepair struct{ /* Cost() content.Cost; HalfDays() int */ }            // FR-029..FR-032
@@ -517,7 +520,7 @@ func TotalCost(row content.SpellcastingService, componentCost content.Cost) (con
   each with a godoc comment): `ArmorRules`, `ArmorBase`, `ArmorTrainingRules`,
   `ArmorTrainingEffects`, `CarryingCapacity`, `LoadAssessment`, `LoadWithinCarry`,
   `LoadSpeedLimited`, `LoadBeyondDragLiftPush`, `DrawnLoad`, `Barding`,
-  `BardingOutcome`, `BardingDerived`, `BardingWeightUnknown`, `SuppliesAndLabor`,
+  `SuppliesAndLabor`,
   `ShipRepair`, `ShipRepairOutcome`, `ShipRepairQuoted`, `ShipRepairExceedsShip`,
   `Crafting`, `CraftingOutcome`, `CraftingRequirements`, `NotCraftable`,
   `CraftingBasis`, `NotCraftableReason`, `ScrollScribing`, `NewScrollScribing`, `MustScrollScribing`,
@@ -534,11 +537,11 @@ why (`ArmorBase` parts, `CraftingRequirements.Basis`, `NotCraftable` and the
 `TableCoverageError` naming the reason).
 
 1. **What can go wrong?** A bad value, incomplete decoded content (missing spell level, armor with no weight, no scribing rows), a rule applied to the wrong entry, a rounding mistake.
-2. **How would an operator know?** a returned `srderr.ErrInvalidInput` error for programmer errors; incomplete content returns `scribingTableMissing`, `BardingWeightUnknown` or a `TableCoverageError`, recorded only by calling use cases (FR-069); decode failures are recorded by `LoadContentSet`.
+2. **How would an operator know?** a returned `srderr.ErrInvalidInput` error for programmer errors; incomplete content returns `scribingTableMissing` or a `TableCoverageError`, recorded only by calling use cases (FR-069); decode failures are recorded by `LoadContentSet`.
 3. **Diagnosis:** the returned breakdown; no attributes.
 4. **Count or time?** Nothing: no I/O, constant or linear work on small tables.
 5. **Existing instrumentation still correct?** Yes (content-equipment.md section 7).
-6. **What should a consumer monitor?** Existing content-load guidance. The first use case calling `Crafting`, `Barding` or the table constructors MUST record `scribingTableMissing`, `BardingWeightUnknown` and the `TableCoverageError` results under its own span (FR-069; shared-types-and-ownership.md FR-044).
+6. **What should a consumer monitor?** Existing content-load guidance. The first use case calling `Crafting`, `Barding` or the table constructors MUST record `scribingTableMissing` and the `TableCoverageError` results under its own span (FR-069; shared-types-and-ownership.md FR-044).
 7. **Anything noisy?** No.
 
 | Signal | Type | Attributes | Purpose | Suggested monitoring |
@@ -552,23 +555,23 @@ small synthetic entries and no ports, doubles or I/O.
 
 | Ids | Level | File and notes |
 |---|---|---|
-| FR-001 to FR-004, FR-006 | unit | `armor_rules_test.go`: "Armor base" rows (Heavy: every modifier -5 to +10 gives the listed base); `ArmorBase` parts, equality under `==` for full, capped-above-cap and none rules; the two synthetic cap-0 rows |
-| FR-005 | unit, architecture | `armor_rules_test.go`: an exhaustive type switch (no `default`) over closed `ArmorClassRule` (the `BonusRule` arm has no evaluation) and over the Dexterity treatment with no default; `internal/archtest`: the exported-name scan lists exactly `BaseArmorClass`, `SpeedPenaltyFeet` and `StealthCircumstances` as `ArmorRules` members. The Shield's `BonusRule` data check stays in content-equipment.md FR-024 |
-| FR-007 to FR-010, FR-079 | unit | `armor_rules_test.go`: "Strength requirement" rows; sweeps of scores 1 to 30 for no requirement and for requirements 13 and 15; "Stealth Disadvantage" rows (all thirteen armors against the seven flagged ones; one element for several flagged armors; mutating the returned slice leaves the next read unchanged) |
-| FR-011 to FR-014, FR-084 | unit | `carrying_capacity_test.go`: Goliath Strength 15: Medium row gives Large (450 lb. Carry), Large Form gives Huge (900 lb.), Gargantuan stays; "Carrying Capacity" rows (Carry and `CarryHalfPounds`, Drag/Lift/Push); Small equals Medium for scores 1 to 30; Tiny odd scores (1, 3, 15) give 15, 45, 225 |
+| FR-001 to FR-004, FR-006 | unit | `equipment_armor_rules_test.go`: "Armor base" rows (Heavy: every modifier -5 to +10 gives the listed base); `ArmorBase` parts, equality under `==` for full, capped-above-cap and none rules; the two synthetic cap-0 rows |
+| FR-005 | unit, architecture | `equipment_armor_rules_test.go`: an exhaustive type switch (no `default`) over closed `ArmorClassRule` (the `BonusRule` arm has no evaluation) and over the Dexterity treatment with no default; `internal/archtest`: the exported-name scan lists exactly `BaseArmorClass`, `SpeedPenaltyFeet` and `StealthCircumstances` as `ArmorRules` members. The Shield's `BonusRule` data check stays in content-equipment.md FR-024 |
+| FR-007 to FR-010, FR-079 | unit | `equipment_armor_rules_test.go`: "Strength requirement" rows; sweeps of scores 1 to 30 for no requirement and for requirements 13 and 15; "Stealth Disadvantage" rows (all thirteen armors against the seven flagged ones; one element for several flagged armors; mutating the returned slice leaves the next read unchanged) |
+| FR-011 to FR-014, FR-084 | unit | `equipment_carrying_test.go`: Goliath Strength 15: Medium row gives Large (450 lb. Carry), Large Form gives Huge (900 lb.), Gargantuan stays; "Carrying Capacity" rows (Carry and `CarryHalfPounds`, Drag/Lift/Push); Small equals Medium for scores 1 to 30; Tiny odd scores (1, 3, 15) give 15, 45, 225 |
 | FR-015 to FR-020 | unit | same file: "Load assessment" rows (within, speed-limited, beyond, negative, load 0, `LimitFeet`); an architecture check that `LoadSpeedLimited` has no member taking a Speed |
-| FR-021 to FR-025 | unit | `drawn_load_test.go`: "Drawn load" rows (limits, at and over, no animals, negative weights); other-order row, passed list unchanged, two calls equal |
-| FR-026 to FR-028 | unit | `barding_test.go`: "Barding" rows; synthetic `NoWeight` armor gives `BardingWeightUnknown` with its id; equality and the coin-kept row |
-| FR-029 to FR-032 | unit | `ship_repair_test.go`: "Ship repair" rows (`notAbundant`, `abundant` incl. odd points, zero and negative, `ForShip` at, above the ship's Hit Points, Sailing Ship) |
-| FR-033 to FR-036 | unit | `crafting_test.go`: "Crafting" rows (raw materials, days incl. 10 GP 1 CP and 20 GP); rated cost an `srderr.ErrInvalidInput` error; zero cost gives 0 CP for `RawMaterials` and an `srderr.ErrInvalidInput` error for `days` |
-| FR-037 to FR-039 | unit | `crafting_tools_test.go`: item named directly, sets by `weaponType` and armor category with `except`, a non-matching entry type, an item outside the bundled set; order by id, duplicates once, reversed and empty input |
-| FR-040 to FR-048, FR-066 | unit | `crafting_requirements_test.go`: "Crafting requirements" rows (generic, Potion of Healing override, scroll rows, missing `scribing`, Gaming Set, Spell Scroll family, Feed, zero-cost goods, non-goods entries, Wretched, override-beats-rated, Galley, Cart, dragonchess, Arcane Focus, Crystal) |
-| FR-049 to FR-051 | unit | `scroll_scribing_test.go`: ten rows; `NewScrollScribing` with a gap, a repeat and no rows (the `TableCoverageError` fields); `content.NewSpellLevel(-1)` and `(10)` assert upstream rejection |
-| FR-052 to FR-057 | unit | `spellcasting_services_test.go`: nine level rows; `NewSpellcastingServices` with a gap, an overlap, an inverted range, and empty rows; five availability rows; components added, none and rated |
+| FR-021 to FR-025 | unit | `equipment_drawn_load_test.go`: "Drawn load" rows (limits, at and over, no animals, negative weights); other-order row, passed list unchanged, two calls equal |
+| FR-026 to FR-028 | unit | `equipment_barding_test.go`: "Barding" rows; equality and the coin-kept row |
+| FR-029 to FR-032 | unit | `equipment_ship_repair_test.go`: "Ship repair" rows (`notAbundant`, `abundant` incl. odd points, zero and negative, `ForShip` at, above the ship's Hit Points, Sailing Ship) |
+| FR-033 to FR-036 | unit | `equipment_crafting_test.go`: "Crafting" rows (raw materials, days incl. 10 GP 1 CP and 20 GP); rated cost an `srderr.ErrInvalidInput` error; zero cost gives 0 CP for `RawMaterials` and an `srderr.ErrInvalidInput` error for `days` |
+| FR-037 to FR-039 | unit | `equipment_crafting_tools_test.go`: item named directly, sets by `weaponType` and armor category with `except`, a non-matching entry type, an item outside the bundled set; order by id, duplicates once, reversed and empty input |
+| FR-040 to FR-048, FR-066 | unit | `equipment_crafting_requirements_test.go`: "Crafting requirements" rows (generic, Potion of Healing override, scroll rows, missing `scribing`, Gaming Set, Spell Scroll family, Feed, zero-cost goods, non-goods entries, Wretched, override-beats-rated, Galley, Cart, dragonchess, Arcane Focus, Crystal) |
+| FR-049 to FR-051 | unit | `equipment_scroll_scribing_test.go`: ten rows; `NewScrollScribing` with a gap, a repeat and no rows (the `TableCoverageError` fields); `content.NewSpellLevel(-1)` and `(10)` assert upstream rejection |
+| FR-052 to FR-057 | unit | `equipment_spellcasting_services_test.go`: nine level rows; `NewSpellcastingServices` with a gap, an overlap, an inverted range, and empty rows; five availability rows; components added, none and rated |
 | FR-058 to FR-062, FR-069, FR-070 | architecture | `internal/archtest` (check A1): the `equipment_*.go` files import no `os`, `net`, `context`, `telemetry` or `*test` package and no other `character` spec file (shared-types-and-ownership.md FR-016); only the kernel packages and `content`; no `combat` import; no `go` statement, `math/rand`, `time.Now`, `time.Since`, `telemetry.Logger`, `Tracer`, `Meter` or signal constant; the consumer-name scan over the whole module and data (architecture-guardrails.md FR-025, FR-026); every type of section 6 exported from package `character`; duplicate-name scan; godoc present; no JSON key or `map[string]any` in a signature; no use case, command, port or `...Result` type; `derived-stats.md` and `magic-item-rules.md` use cases construct no other use case |
-| FR-063, FR-067 | unit | `crafting_requirements_test.go`, `scroll_scribing_test.go`, `spellcasting_services_test.go`: mutate each returned slice (unchanged next read); build from a mutable slice, mutate it, assert lookups and equality unchanged; `IsAvailable` and `TotalCost` called as package functions |
+| FR-063, FR-067 | unit | `equipment_crafting_requirements_test.go`, `equipment_scroll_scribing_test.go`, `equipment_spellcasting_services_test.go`: mutate each returned slice (unchanged next read); build from a mutable slice, mutate it, assert lookups and equality unchanged; `IsAvailable` and `TotalCost` called as package functions |
 | FR-064, FR-065, FR-068 | scenario | `scenarios/equipment_rules_test.go` (package `scenarios_test`) via public packages only: Leather Armor +3 gives 14; Plate Armor Strength 8 gives 10; the whole "Which tools craft an item" table; Plate Armor barding 6,000 GP and 130 lb. and crafting 750 GP, 150 days, `smiths_tools` (phase 5 data; until then FR-001 to FR-010, FR-026 to FR-039 cover the behaviour on synthetic entries) |
-| FR-071 to FR-078 | unit | `armor_training_test.go`: "Armor Training" rows (`Untrained` and `RollCircumstancesFor` for Strength, Dexterity, Initiative, Constitution, Charisma, the empty and two-ability sets; at most one element; Shield rows give `[]` over all six abilities and the empty set; two- and three-body-armor rows return an `srderr.ErrInvalidInput` error, empty `worn` valid; `WearsUntrainedBodyArmor`; monster rows over every `involved` set); `modifier.Resolve` with and without one `Advantage` (the one place this suite imports the kernel's `RollMode`); equality, hash code, `UnsupportedError` on `Untrained` and the list, mutated inputs, input order irrelevant |
+| FR-071 to FR-078 | unit | `equipment_armor_training_test.go`: "Armor Training" rows (`Untrained` and `RollCircumstancesFor` for Strength, Dexterity, Initiative, Constitution, Charisma, the empty and two-ability sets; at most one element; Shield rows give `[]` over all six abilities and the empty set; two- and three-body-armor rows return an `srderr.ErrInvalidInput` error, empty `worn` valid; `WearsUntrainedBodyArmor`; monster rows over every `involved` set); `modifier.Resolve` with and without one `Advantage` (the one place this suite imports the kernel's `RollMode`); equality, hash code, `UnsupportedError` on `Untrained` and the list, mutated inputs, input order irrelevant |
 
 - **Table-driven tests:** one test per `<br>`-separated entry of every case table, named from its entry text, with its requirement and path (testing.md section 5). Unit tests use synthetic entries with the printed numbers; the scenario test uses bundled data.
 - **Mutation testing:** the `equipment_*.go` files at least 80 with `gomu` (testing.md section 8; run only inside Docker with `--cpus` and `--workers` capped at a quarter of `nproc`), attending to the cap in FR-002, `<` vs `<=` in FR-007/FR-008, `>` vs `>=` in FR-015, FR-017, FR-018, FR-022, the five-fold factor, the floor in FR-033, the ceiling in FR-035, the half-pound doubling in FR-011, the guard order in FR-048, in FR-072 the body-armor test and the Strength-or-Dexterity test, and in FR-079 the any-flagged test and the single element.
@@ -584,7 +587,7 @@ No question is open or escalated. Settled (one line each):
 - **Q15.** Interpretation (the SRD gives no denomination; web sources only repeat the p. 103 text): round Raw Materials down in Copper Pieces, the smallest coin and the unit of `valueInCopper` (15 GP gives 7 GP 5 SP, 1 CP gives 0, 5 CP gives 2); Time is the ceiling of `valueInCopper` / 1,000 (10 GP 1 CP is 2 days). SRD examples are unaffected; dependent rows are marked "package design (Q15)"; a consumer wanting whole-GP rounding wraps the call. **Q20.** The Speed penalty: `SpeedPenaltyFeet` stays the integer output; the Speed arithmetic is `movement-lifting-and-flight.md`'s, as `MovementSpeeds.AdjustedBy(-penalty)` (a decrease reaches special speeds equally, floor 0: SRD p. 188 "Changes to Your Speeds"; `character` cannot import `combat`'s `MovementSpeeds`). The Stealth Disadvantage is FR-079 here, following the Armor Training pattern; `derived-stats.md` section 1 and the glossary are re-pointed by amendment.
 - **Q1, Q2, Q4, Q5, Q12.** shared-types-and-ownership.md FR-048, FR-014, FR-005, FR-046; content-equipment.md FR-093. **Q21.** `CraftingBasis` is a named enum; an absent `scribing` table yields `scribingTableMissing`, never a nil value standing in for a state (FR-040, FR-043).
 - **Q6.** Domain code takes `[]content.Tool` and rows, not the `ContentSet`; lookup is the port's job (architecture.md section 2). **Q14.** No use case here (shared-types-and-ownership.md FR-044). **Q7.** `RawMaterials(0)` is 0 Copper Pieces; only `days` rejects 0 (FR-034, FR-036). **Q10.** Above the Drag/Lift/Push maximum the load cannot be moved: `LoadBeyondDragLiftPush` (FR-018).
-- **Q9.** Absent weight is `BardingWeightUnknown`; the Shield is on the Armor table so it is included (content-equipment.md Q4); no barding AC (FR-026, FR-027). **Q11.** Whole pounds for loads, half pounds for Tiny Carry, integer Copper Pieces for sums, half days for ship time; a `Pounds` quarter-pound type only when an inventory total needs it.
+- **Q9.** The Shield is on the Armor table so it is included (content-equipment.md Q4); no barding AC (FR-026, FR-027). **Q11.** Whole pounds for loads, half pounds for Tiny Carry, integer Copper Pieces for sums, half days for ship time; a `Pounds` quarter-pound type only when an inventory total needs it.
 - **Q16.** Results for content-derived or domain outcomes, a returned `srderr.ErrInvalidInput` error for caller-computed numbers (loads, weights, hit points, rates): these are host-computed sums, not parsed text, so architecture.md section 6's untrusted-input row does not apply; a host taking such a number from outside validates at its own boundary. **Q17.** Vehicle: `NotCraftable(noCraftingRule)`; plain-priced Tack row, tool, focus or ammunition variant: generic rule (FR-066); package design.
 - **Q19.** `movement-lifting-and-flight.md` owns the Speed limit arithmetic (FR-001, FR-002, FR-005, FR-058; `LoadSpeedRules.Limit` reads `LimitFeet`, FR-006, FR-059); this spec only reports 5 feet (rules-glossary-coverage.md GL-025a, GL-025b). **Q18.** Rank 9 in shared-types-and-ownership.md 4.11 (dependencies top out at rank 6); `derived-stats.md` (rank 10) lists this spec; FR-070 holds for any position.
 - **Q22.** shared-types-and-ownership.md FR-060: this spec owns Armor Training (FR-071 to FR-078), `derived-stats.md` applies it (its FR-039); Shield AC loss is `derived-stats.md` FR-035, the spellcasting ban `casting-and-concentration.md` FR-063 (fed by FR-075). `derived-stats.md` lists this spec in its header (FR-056).

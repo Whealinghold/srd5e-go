@@ -2,10 +2,21 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `character-aggregate.md`, `dice-and-rolls.md`, `observability-ports.md`, `errors-and-results.md` |
+
+**Implementation status.** Implemented in package `character` (tests named after the source files; no requirement needs Phase 5 data, so every id of section 4 is a T id with a test). Files: `excess_inspiration_choice.go`, `resolve_excess_inspiration.go` (`ResolveExcessInspiration`, `ExcessResolution`, `GainHeroicInspirationRejection`), `reroll_target.go`, `rerolled_die.go`, and the use cases `gain_heroic_inspiration_usecase.go` and `expend_heroic_inspiration_usecase.go`; the signal names are in `signals.go`. Spec corrections made while implementing, all decided in the code:
+
+- **Gain returns an error.** `GainHeroicInspiration.Gain(ctx, cmd)` returns `(GainHeroicInspirationResult, error)`, not a bare result, so that FR-028 can return a cancelled `ctx` as `ctx.Err()` and a zero holder or a give to a zero recipient as `srderr.ErrInvalidInput`, both before any signal. It calls no port, so it never returns a `*srderr.PortError`.
+- **Accessors.** Result, command-output and `ExcessResolution` variants have unexported fields and the accessors `Holder()`, `Recipient()`, `Events()`, `Character()`, `Rerolled()` and `Reason()`, as the rest of the package does; `Events()` returns a copy (FR-011, FR-026). The commands, `GiveExcessInspirationTo` and `RerollTargetError` have exported fields built with keyed literals. `RerollTargetError` carries `Reason`, `Argument` ("diceRolled" or "position") and `Value`; `RerolledDieError` carries `Argument` ("newValue" or "position") and `Value`.
+- **FR-021, zero Die.** `NewRerollTarget` does not check the die (FR-020 lists no die rule), so the zero Die is accepted; `RerollTarget.IsZero` reports it and `Expend` refuses such a target with `srderr.ErrInvalidInput` before any signal or roll. The same holds for the zero `RerollTarget`, a zero `Character` and the zero use case.
+- **Choice not read, nil choice.** Besides FR-009, any `ExcessInspirationChoice` other than `GiveExcessInspirationTo`, including nil, is a loss for an Inspired holder (FR-038 step 4).
+- **FR-029 outcome.** The shared `operationRun.finish` of `character-aggregate.md` records `failure` only for `rejected` and `content_missing`; `gained`, `excess_lost`, `excess_given` and `expended` are `success`.
+- **`GainHeroicInspirationReceived` and the others** are built only by `Gain`; `ExcessResolution*` only by `ResolveExcessInspiration`.
+
+Not yet implemented: none.
 
 ## 1. Purpose and scope
 

@@ -4,7 +4,7 @@
 
 A framework-agnostic Go implementation of the fifth-edition rules in System Reference Document 5.2.1, written to be imported by other projects.
 
-Status: early. Dice, modifiers, ability scores, the `dice.Roller` port, the error model, telemetry ports and the first context (`d20`: ability checks, saving throws and attack rolls) exist.
+Status: early. Dice, modifiers, ability scores, the `dice.Roller` port, the error model, telemetry ports, `d20` (ability checks, saving throws and attack rolls), `content` (typed SRD content, the decoder and a bundled slice) and `character` (the character aggregate, derived stats, creation, level advancement, rests, spellcasting, magic items, feats, species traits and the twelve classes) exist.
 
 ## Goals
 
@@ -80,9 +80,10 @@ func main() {
 | `content` | typed SRD content, `JSONDecoder`, `Loader`, `Source` port, `InMemorySource` |
 | `content/contenttest` | `FakeSource`, `FakeDecoder`, `RunSourceContract`, `RunDecoderContract` |
 | `content/data` | `BundledSource` and the bundled SRD slice (covered by `NOTICE.md`) |
+| `character` | the character aggregate and its rules: derived stats, creation, level advancement and multiclassing, rests, spellcasting and casting, magic items, feats, species traits, and the twelve classes |
 | `scenarios` | cross-package tests through the public API (tests-only directory; not an importable package) |
 
-Not built yet: `character`, `combat` and `toolbox` (see [doc/roadmap.md](doc/roadmap.md)).
+Not built yet: `combat` and `toolbox` (see [doc/roadmap.md](doc/roadmap.md)).
 
 ## Dice and rolling
 
@@ -118,7 +119,7 @@ func TestMyRoller(t *testing.T) {
 
 ## Game content
 
-The `content` package holds typed SRD 5.2.1 content and the ports that deliver it: the strict `content.JSONDecoder` (reports every problem with its path), the `content.Loader` use case, `content.InMemorySource`, and `content/data`, whose `BundledSource` serves the bundled slice (4 species, the Wizard, 12 spells). Look entries up with `Source.Lookup` and switch over the closed `LookupResult`.
+The `content` package holds typed SRD 5.2.1 content and the ports that deliver it: the strict `content.JSONDecoder` (reports every problem with its path), the `content.Loader` use case, `content.InMemorySource`, and `content/data`, whose `BundledSource` serves the bundled slice (4 species, the twelve classes with their subclasses, 73 spells). Look entries up with `Source.Lookup` and switch over the closed `LookupResult`.
 
 ```go
 src, err := data.NewBundledSource()
@@ -140,6 +141,18 @@ func TestMySource(t *testing.T) {
 ## Ability scores
 
 `ability.Ability` names the six abilities. An `ability.Score` is a whole number from 1 to 30; its `Modifier` comes from the SRD's Ability Modifiers table (score 1 gives -5, 10 gives +0, 20 gives +5, 30 gives +10). `ability.NewScore` returns an `*ability.InvalidError` for a number outside 1 to 30. `ability.NewScores` holds one score per ability. An `ability.Modifier` is not a `modifier.Modifier`: convert it with `modifier.New(m.Value())`.
+
+## Characters
+
+The `character` package holds the `Character` aggregate and the rules around it. State goes in a command and the new state and domain events come out in a closed result, so the host decides where state is stored; nothing is kept inside the library. Use cases (`CreateCharacter`, `LevelUpCharacter`, `TakeRest`, `CastSpell`, the class and species-trait use cases) read content through a `ContentSource` and dice through a `dice.Roller`; the pure rule functions take plain values and emit no telemetry. A rule the player simply cannot use is a returned rejection with typed reasons, never an error. The class features of the twelve classes, the bundled Wizard and Fighter flows and a Dragonborn Breath Weapon are shown by the examples in the package and by `scenarios/phase_3_test.go`.
+
+```go
+use, _ := character.NewLevelUpCharacter(character.WithSource(data.MustBundledSource()), character.WithRoller(roller))
+res, _ := use.Run(ctx, character.LevelUpCharacterCommand{Character: pc, Class: content.MustClassID("fighter"), HitPointChoice: character.TakeFixedValue{}})
+next := res.(character.LevelUpCharacterSucceeded).Character()
+```
+
+The bundled content is a slice of SRD 5.2.1 (four species, the twelve classes and 73 spells); the rest of the spells, the equipment, feats, backgrounds and magic items arrive with the Phase 5 data, and tests use synthetic entries for them.
 
 ## Observability (logging, tracing, metrics)
 

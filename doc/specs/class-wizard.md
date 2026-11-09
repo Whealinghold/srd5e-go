@@ -2,10 +2,16 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `character-aggregate.md`, `derived-stats.md`, `spellcasting.md`, `rests-and-hit-dice.md`, `level-advancement-and-multiclassing.md`, `character-creation.md`, `ability-scores.md`, `content-classes.md`, `content-spells.md`, `content-source-port.md`, `content-schema-and-decoder.md`, `observability-ports.md`, `errors-and-results.md` |
+
+**Implementation status.** Implemented in package `character` (tests named after the source files). Files: `wizard_spell_facts.go` (`WizardClassID`, `WizardSpellFacts`, FR-099), `wizard_rules.go` (`WizardRules`, `ArcaneRecovery`, `NewArcaneRecoveryChoice`, FR-018, FR-029, FR-033, FR-045, FR-047 to FR-049, FR-052), `wizard_rejection.go` (the ten rejection types and `WizardCreationRejection`, FR-100), `wizard_choices.go` (the skill, equipment and cantrip rules, `WizardCreationChoices`, FR-004 to FR-006, FR-009 to FR-011, FR-027, FR-028, FR-105), `wizard_spellbook.go` (`SpellbookRules`, `SpellCopyCost`, `SpellbookChanged`, FR-030 to FR-039), `wizard_state.go` (`WizardResources`, `WizardResourcesKey`, `SpellMastery`, `SignatureSpells`, `WizardAlwaysPrepared`, FR-065 to FR-075, FR-090, FR-107), `wizard_features.go` (Scholar, Memorize Spell and Ritual Adept rules, FR-041 to FR-044, FR-053 to FR-056, FR-061 to FR-064, FR-110), `wizard_event.go` (FR-091), `wizard_signals.go` and `wizard_usecase.go` (FR-097, FR-098), and the fifteen use cases in `use_wizard_choices.go`, `use_wizard_spellbook.go` and `use_wizard_spells.go` (FR-093 to FR-096, FR-102). Data: `content/data/class_wizard.json` (the full Wizard) and its oracle rows, tested in `content/data/data_wizard_test.go`.
+
+Go forms that differ from the text below (decided in this step): a use case returns `(Result, error)` with a closed result set whose accepted variants are named `WizardSkillsApplied`, `WizardEquipmentApplied`, `WizardCantripsApplied`, `ScholarApplied`, `SpellbookChanged`, `ArcaneRecoveryApplied`, `MemorizeApplied`, `RitualAdeptEligible`, `SpellMasteryApplied`, `SpellMasteryReplaceApplied` and `SignatureSpellsApplied` (the events are `WizardSkillsChosen` and so on, so a payload never shares a name with an event); a rejection is a `<Type>Rejected` result carrying a rejection value with a `Kind` per cause (`SpellbookAlreadyInSpellbook`, `ArcaneRecoveryAlreadyUsed`, with the snake_case `String` as the signal value) instead of one exported variant type per cause; the events implement the sealed `Event` through `WizardEvent`, not a separate `CharacterEvent`; the three pure use cases take a `ctx` for their span; `NewWizardCreationChoices` returns a joined error of `WizardCreationError` values, each carrying a `WizardCreationRejection`; the tests reach the real Wizard definition and the other fixtures through the bundled source.
+
+Not yet implemented, with the reason: nothing of FR-106 (it is `EvokerRules.Gate`, step 9f, with the Evoker use cases of class-wizard-evoker.md); the whole-set Wizard spell list closure (content-spells.md, Phase 5: the host resolves spells and supplies `WizardSpellFacts`); the caller that maps a `RestApplied` to `WizardResources.AfterRest` and stores the state is the host's (FR-110); the "spell mastery replacement available" flag of section 5 (derived from the trigger, so not stored).
 
 Binding decisions: [shared-types-and-ownership.md](shared-types-and-ownership.md);
 where this spec conflicts with it, that spec wins. In-context order is its FR-016.
@@ -542,6 +548,8 @@ API only). The shared `content.Source` contract suite covers the port; no double
 
 Mutation testing: every changed line in `character/` at a score of at least 80
 (`doc/rules/testing.md` §8); application lines SHOULD be tested. Withdrawn ids are covered by their new owners.
+
+Mutation results (`just mutate ./character/<file>.go`, gomu v0.2.1, `--timeout=300`, one file at a time; a 60 s timeout wrongly timed out 71% of mutants under the CPU cap and was discarded). Domain files: `wizard_rules.go` 91.1 (166 mutants), `wizard_spellbook.go` 93.2 (92), `wizard_state.go` 87.5 (148), `wizard_choices.go` 89.2 (82), `wizard_features.go` 90.2 (43), `wizard_rejection.go` 100 (48), `wizard_spell_facts.go` 62.5 (11; the 3 survivors are an equivalent `== 0` to `<= 0` on an unsigned-in-practice level, an equivalent zero-value return, and one that a manual mutation killed), `wizard_usecase.go` 100 (8); `wizard_event.go` and `wizard_signals.go` have no mutable logic (0 mutants). Use cases: `use_wizard_choices.go` 85.1 (165), `use_wizard_spellbook.go` 82.2 (148), `use_wizard_spells.go` 79.9 (257; SHOULD, not MUST). After the run, survivors that were real gaps got tests (Spell Mastery of three spells, a lower-level swap, a level 4 and a level 2 Signature Spell, a zero Arcane Recovery entry, several modes in `NewWizardSpellFacts`) and were re-checked by manual mutation (`wizard_state.go` lines 182, 214, 243, 260; `wizard_rules.go` lines 145, 159); the rest are equivalent (`!= 0` to `> 0` on non-negative kinds, zero-value returns, `== 1` to `<= 1` guarded by a range error, error-propagation branches reached only through a corrupt class definition).
 
 ## 9. Open questions and decisions
 

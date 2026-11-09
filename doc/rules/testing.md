@@ -431,6 +431,7 @@ The recipe adds these on top of that command:
   under a lock and a cgroup cap, for example
   `flock /tmp/srd5e-heavy.lock systemd-run --user --scope -q -p CPUQuota=400% -p MemoryMax=8G -p MemorySwapMax=0 nice -n 19 ionice -c3 env GOMAXPROCS=4 GOMEMLIMIT=6GiB MUTATE_CPUS=3 just mutate ./content/kind.go`,
   so concurrent runs queue instead of competing.
+- **`MUTATE_OUTPUT`** passes `--output` to gomu. `console` (default) and `text` print only totals; `MUTATE_OUTPUT=json` writes `mutation-report.json` (git-ignored) listing every mutant with file, line, column, original, mutated, and status (`KILLED`, `SURVIVED`, `TIMED_OUT`, ...), so survivors can be read from it. Example: `MUTATE_OUTPUT=json just mutate ./character/foo.go`. A `TIMED_OUT` mutant is not a kill: when the whole-package suite takes longer than `MUTATE_TIMEOUT` (default 30 s) under the CPU cap, raise `MUTATE_TIMEOUT`.
 - gomu v0.2.1 produces no output for a source file without a same-named
   `_test.go` (`foo.go` needs `foo_test.go`); such files use the manual-mutation
   fallback below.
@@ -642,7 +643,7 @@ internal/archtest/                             # guardrails (§9)
 
 ## Read receipt
 
-RULE-TAG: `testing-70b8083164a8`
+RULE-TAG: `testing-466f52285704`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

@@ -499,3 +499,28 @@ func TestThirtyTwoBit(t *testing.T) {
 		{"only the release spec is missing", with(map[string]string{".github/workflows/ci.yml": all[".github/workflows/ci.yml"], "AGENTS.md": all["AGENTS.md"]}), rule},
 	})
 }
+
+// Requirement: architecture.md section 1 (character row); plan-phase-3.md step 0.
+// Path: character may import content, d20 and kernel packages; never combat,
+// toolbox or a *test package from production files.
+func TestCharacterPolicy(t *testing.T) {
+	t.Parallel()
+	ch := func(imp string) map[string]string {
+		return map[string]string{
+			"content/doc.go":       "// Package content is a fixture.\npackage content\n",
+			"d20/doc.go":           "// Package d20 is a fixture.\npackage d20\n",
+			"combat/doc.go":        "// Package combat is a fixture.\npackage combat\n",
+			"dice/dicetest/doc.go": "// Package dicetest is a fixture.\npackage dicetest\n",
+			"dice/doc.go":          "// Package dice is a fixture.\npackage dice\n",
+			"character/doc.go":     "// Package character is a fixture.\npackage character\n",
+			"character/x.go":       "package character\n\nimport _ \"" + imp + "\"\n",
+		}
+	}
+	runGuardCases(t, []guardCase{
+		{"imports content", ch("example.com/m/content"), ""},
+		{"imports d20", ch("example.com/m/d20"), ""},
+		{"imports dice", ch("example.com/m/dice"), ""},
+		{"imports combat", ch("example.com/m/combat"), archtest.RuleImport},
+		{"imports a test package", ch("example.com/m/dice/dicetest"), archtest.RuleImport},
+	})
+}
