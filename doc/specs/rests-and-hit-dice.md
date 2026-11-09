@@ -2,11 +2,22 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `errors-and-results.md`, `dice-and-rolls.md`, `ability-scores.md`, `observability-ports.md`, `content-schema-and-decoder.md`, `derived-stats.md`, `character-aggregate.md` |
 
+**Implementation status.** Implemented in package `character` (one file per concept, tests named after the source files): every requirement id of section 4 except the two halves named below, all testable now (none needs Phase 5 data). Files: `rest_kind.go` (`RestKind`, `LongRestVariant`, `RestInterruption`, `RestSource`), `long_rest_spacing.go`, `rest_start_check.go`, `rest_resolution.go` (`RestEnd`, `RestReport`, `ResolveRest`), `rest_benefits.go`, `hit_points_regained.go`, `spent_hit_dice.go`, `rest_event.go`, and the use cases `take_rest.go` and `spend_hit_point_die.go`; the signal names are in `signals.go`. Spec corrections made while implementing, all decided in the code:
+
+- **Names of the aggregate.** `CharacterID` is `Identifier` and `character.Event` is `Event` (`character-aggregate.md`, this status list); `RestEvent` embeds `Event`. The event accessor `CharacterID()` keeps its name.
+- **Go forms.** `SpentHitDiceKey` is a function (`SpentHitDiceKey()`), because a package-level `var` breaks A4. The `RestEnd` variants are built with `NewRestRanItsCourse` and `NewRestStopped` (they do not validate; `NewRestReport` does). `RestReportRejection`, `RestBenefitsGranted` and `HitDieSpendRejection` are typed `int` enums with `String()` rather than interface families (each has no variant data). `RollRangeError` is declared in `character` as well as `content`, with exported fields `Name`, `Value`, `Min`, `Max`. `NewHitDieSpender(roller, opts...)` takes the roller directly, as the spec says, not `WithRoller`.
+- **FR-066** `NewRestReport` reports an invalid kind, variant or interruption, or a nil end, as one plain `srderr.ErrInvalidInput` error (these have no `RestReportProblem` value); only the three negative-number problems are joined. A Short Rest still needs a valid `LongRestVariant`.
+- **FR-051** `TakeRestIncomplete`, `TakeRestStopped` and `TakeRestRejected` carry `SpentHitDice()` (unchanged); `TakeRestNotStarted` does not, nothing having been looked at.
+- **Zero command.** `TakeRest` returns no error (it calls no port), so a command not built by `NewTakeRestCommand`, and the zero `RestTaker`, give a nil `TakeRestResult` before any signal.
+- **FR-057** a cancelled `ctx` is returned unwrapped by `SpendHitPointDie` before any signal; `TakeRest` ignores `ctx` cancellation (no port, no I/O).
+- **FR-059 and FR-062** are enforced by `internal/archtest` (`rests_and_hit_dice_test.go`) and check A7.
+
+Not yet implemented: the table-wide scenario half of FR-060 and FR-061 (every Table R and Table W row through each owner's public function for both `RestKind` values). `scenarios/rests_test.go` pins the `RestApplied` contract and reads one rest through the Wizard, Orc species and (in `TestFighterFlow`) Fighter owners; the rows of the other owners are tested in their own specs' unit tests (the `class-*`, `species-trait-behaviour`, `feats-behaviour` and `spellcasting` specs), and `FeatRenewal` and `MountedPaceBoost` have no scenario row.
 ## 1. Purpose and scope
 
 Specifies the Short Rest and Long Rest and spending Hit Point Dice, as the SRD

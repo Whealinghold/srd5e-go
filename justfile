@@ -73,10 +73,10 @@ check:
     just fuzz-smoke 10s
 
 # Docker only, CPUs and workers capped at 1/4 of nproc (doc/rules/testing.md section 8).
-# MUTATE_CPUS may lower the cap, never raise it. Runs as the invoking user so reports are not root-owned.
+# MUTATE_CPUS may lower the cap, never raise it. MUTATE_TIMEOUT (seconds, default 30) raises gomu per-mutant test timeout. Runs as the invoking user so reports are not root-owned.
 # gomu takes ONE path and not ./...; "." recurses over the whole module, a .go file mutates that file.
 # Without --ci-mode gomu exits 0 even below the threshold; a single-file call omits it (score and survivors, no gate).
-[doc("Mutation tests in capped Docker; arg: path (default ., e.g. ./srderr or ./content/kind.go); env MUTATE_CPUS lowers the CPU cap")]
+[doc("Mutation tests in capped Docker; arg: path (default ., e.g. ./srderr or ./content/kind.go); env MUTATE_CPUS lowers the CPU cap, MUTATE_OUTPUT=text|json lists survivors")]
 mutate pkg=".":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -89,4 +89,4 @@ mutate pkg=".":
     docker run --rm --cpus="$cpus" --memory=8g --memory-swap=8g --pids-limit=1024 --user "$(id -u):$(id -g)" \
       -e GOMEMLIMIT=3GiB -e HOME=/tmp/home -e GOCACHE=/tmp/gocache -e GOPATH=/tmp/gopath \
       -v "$PWD":/workspace -w /workspace golang:1.26 \
-      sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && /tmp/gopath/bin/gomu run --workers=$cpus --incremental=false $gate {{ pkg }}"
+      sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && /tmp/gopath/bin/gomu run --workers=$cpus --incremental=false --timeout=${MUTATE_TIMEOUT:-30} ${MUTATE_OUTPUT:+--output=$MUTATE_OUTPUT} $gate {{ pkg }}"

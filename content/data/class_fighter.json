@@ -1,0 +1,605 @@
+{
+  "schemaVersion": 1,
+  "classes": [
+    {
+      "id": "fighter",
+      "name": "Fighter",
+      "source": {
+        "document": "SRD 5.2.1",
+        "section": "Fighter",
+        "page": 47
+      },
+      "primaryAbility": {
+        "kind": "anyOf",
+        "abilities": [
+          "strength",
+          "dexterity"
+        ]
+      },
+      "hitPointDie": "D10",
+      "savingThrowProficiencies": [
+        "strength",
+        "constitution"
+      ],
+      "skillChoice": {
+        "picks": 2,
+        "options": {
+          "kind": "listed",
+          "skills": [
+            "Acrobatics",
+            "Animal Handling",
+            "Athletics",
+            "History",
+            "Insight",
+            "Intimidation",
+            "Persuasion",
+            "Perception",
+            "Survival"
+          ]
+        }
+      },
+      "weaponProficiencies": [
+        {
+          "category": "Simple"
+        },
+        {
+          "category": "Martial"
+        }
+      ],
+      "toolProficiencies": [],
+      "armorTraining": [
+        "Light",
+        "Medium",
+        "Heavy",
+        "Shield"
+      ],
+      "startingEquipment": {
+        "A": {
+          "items": [
+            {
+              "name": "Chain Mail",
+              "quantity": 1
+            },
+            {
+              "name": "Greatsword",
+              "quantity": 1
+            },
+            {
+              "name": "Flail",
+              "quantity": 1
+            },
+            {
+              "name": "Javelin",
+              "quantity": 8
+            },
+            {
+              "name": "Dungeoneer’s Pack",
+              "quantity": 1
+            }
+          ],
+          "gold": 4
+        },
+        "B": {
+          "items": [
+            {
+              "name": "Studded Leather Armor",
+              "quantity": 1
+            },
+            {
+              "name": "Scimitar",
+              "quantity": 1
+            },
+            {
+              "name": "Shortsword",
+              "quantity": 1
+            },
+            {
+              "name": "Longbow",
+              "quantity": 1
+            },
+            {
+              "name": "Arrow",
+              "quantity": 20
+            },
+            {
+              "name": "Quiver",
+              "quantity": 1
+            },
+            {
+              "name": "Dungeoneer’s Pack",
+              "quantity": 1
+            }
+          ],
+          "gold": 11
+        },
+        "C": {
+          "items": [],
+          "gold": 155
+        }
+      },
+      "multiclassGrants": {
+        "weaponProficiencies": [
+          {
+            "category": "Martial"
+          }
+        ],
+        "armorTraining": [
+          "Light",
+          "Medium",
+          "Shield"
+        ],
+        "toolProficiencies": []
+      },
+      "columns": [
+        {
+          "id": "second_wind",
+          "header": "Second Wind",
+          "kind": "count"
+        },
+        {
+          "id": "weapon_mastery",
+          "header": "Weapon Mastery",
+          "kind": "count"
+        }
+      ],
+      "progression": [
+        {
+          "level": 1,
+          "proficiencyBonus": 2,
+          "features": [
+            {
+              "featureId": "fighter_fighting_style"
+            },
+            {
+              "featureId": "fighter_second_wind"
+            },
+            {
+              "featureId": "fighter_weapon_mastery"
+            }
+          ],
+          "values": {
+            "second_wind": 2,
+            "weapon_mastery": 3
+          }
+        },
+        {
+          "level": 2,
+          "proficiencyBonus": 2,
+          "features": [
+            {
+              "featureId": "fighter_action_surge",
+              "annotation": "one use"
+            },
+            {
+              "featureId": "fighter_tactical_mind"
+            }
+          ],
+          "values": {
+            "second_wind": 2,
+            "weapon_mastery": 3
+          }
+        },
+        {
+          "level": 3,
+          "proficiencyBonus": 2,
+          "features": [
+            {
+              "featureId": "fighter_fighter_subclass"
+            }
+          ],
+          "values": {
+            "second_wind": 2,
+            "weapon_mastery": 3
+          }
+        },
+        {
+          "level": 4,
+          "proficiencyBonus": 2,
+          "features": [
+            {
+              "featureId": "fighter_ability_score_improvement"
+            }
+          ],
+          "values": {
+            "second_wind": 3,
+            "weapon_mastery": 4
+          }
+        },
+        {
+          "level": 5,
+          "proficiencyBonus": 3,
+          "features": [
+            {
+              "featureId": "fighter_extra_attack"
+            },
+            {
+              "featureId": "fighter_tactical_shift"
+            }
+          ],
+          "values": {
+            "second_wind": 3,
+            "weapon_mastery": 4
+          }
+        },
+        {
+          "level": 6,
+          "proficiencyBonus": 3,
+          "features": [
+            {
+              "featureId": "fighter_ability_score_improvement"
+            }
+          ],
+          "values": {
+            "second_wind": 3,
+            "weapon_mastery": 4
+          }
+        },
+        {
+          "level": 7,
+          "proficiencyBonus": 3,
+          "features": [
+            {
+              "kind": "subclassFeature"
+            }
+          ],
+          "values": {
+            "second_wind": 3,
+            "weapon_mastery": 4
+          }
+        },
+        {
+          "level": 8,
+          "proficiencyBonus": 3,
+          "features": [
+            {
+              "featureId": "fighter_ability_score_improvement"
+            }
+          ],
+          "values": {
+            "second_wind": 3,
+            "weapon_mastery": 4
+          }
+        },
+        {
+          "level": 9,
+          "proficiencyBonus": 4,
+          "features": [
+            {
+              "featureId": "fighter_indomitable",
+              "annotation": "one use"
+            },
+            {
+              "featureId": "fighter_tactical_master"
+            }
+          ],
+          "values": {
+            "second_wind": 3,
+            "weapon_mastery": 4
+          }
+        },
+        {
+          "level": 10,
+          "proficiencyBonus": 4,
+          "features": [
+            {
+              "kind": "subclassFeature"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 5
+          }
+        },
+        {
+          "level": 11,
+          "proficiencyBonus": 4,
+          "features": [
+            {
+              "featureId": "fighter_two_extra_attacks"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 5
+          }
+        },
+        {
+          "level": 12,
+          "proficiencyBonus": 4,
+          "features": [
+            {
+              "featureId": "fighter_ability_score_improvement"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 5
+          }
+        },
+        {
+          "level": 13,
+          "proficiencyBonus": 5,
+          "features": [
+            {
+              "featureId": "fighter_indomitable",
+              "annotation": "two uses"
+            },
+            {
+              "featureId": "fighter_studied_attacks"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 5
+          }
+        },
+        {
+          "level": 14,
+          "proficiencyBonus": 5,
+          "features": [
+            {
+              "featureId": "fighter_ability_score_improvement"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 5
+          }
+        },
+        {
+          "level": 15,
+          "proficiencyBonus": 5,
+          "features": [
+            {
+              "kind": "subclassFeature"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 5
+          }
+        },
+        {
+          "level": 16,
+          "proficiencyBonus": 5,
+          "features": [
+            {
+              "featureId": "fighter_ability_score_improvement"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 6
+          }
+        },
+        {
+          "level": 17,
+          "proficiencyBonus": 6,
+          "features": [
+            {
+              "featureId": "fighter_action_surge",
+              "annotation": "two uses"
+            },
+            {
+              "featureId": "fighter_indomitable",
+              "annotation": "three uses"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 6
+          }
+        },
+        {
+          "level": 18,
+          "proficiencyBonus": 6,
+          "features": [
+            {
+              "kind": "subclassFeature"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 6
+          }
+        },
+        {
+          "level": 19,
+          "proficiencyBonus": 6,
+          "features": [
+            {
+              "featureId": "fighter_epic_boon"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 6
+          }
+        },
+        {
+          "level": 20,
+          "proficiencyBonus": 6,
+          "features": [
+            {
+              "featureId": "fighter_three_extra_attacks"
+            }
+          ],
+          "values": {
+            "second_wind": 4,
+            "weapon_mastery": 6
+          }
+        }
+      ],
+      "features": [
+        {
+          "id": "fighter_fighting_style",
+          "name": "Fighting Style",
+          "level": 1,
+          "text": "You have honed your martial prowess and gain a Fighting Style feat of your choice (see “Feats”). Defense is recommended.\nWhenever you gain a Fighter level, you can replace the feat you chose with a different Fighting Style feat.",
+          "facts": [
+            {
+              "kind": "grantsFeat",
+              "category": "Fighting Style"
+            }
+          ]
+        },
+        {
+          "id": "fighter_second_wind",
+          "name": "Second Wind",
+          "level": 1,
+          "text": "You have a limited well of physical and mental stamina that you can draw on. As a Bonus Action, you can use it to regain Hit Points equal to 1d10 plus your Fighter level.\nYou can use this feature twice. You regain one expended use when you finish a Short Rest, and you regain all expended uses when you finish a Long Rest.\nWhen you reach certain Fighter levels, you gain more uses of this feature, as shown in the Second Wind column of the Fighter Features table."
+        },
+        {
+          "id": "fighter_weapon_mastery",
+          "name": "Weapon Mastery",
+          "level": 1,
+          "text": "Your training with weapons allows you to use the mastery properties of three kinds of Simple or Martial weapons of your choice. Whenever you finish a Long Rest, you can practice weapon drills and change one of those weapon choices.\nWhen you reach certain Fighter levels, you gain the ability to use the mastery properties of more kinds of weapons, as shown in the Weapon Mastery column of the Fighter Features table."
+        },
+        {
+          "id": "fighter_action_surge",
+          "name": "Action Surge",
+          "level": 2,
+          "text": "You can push yourself beyond your normal limits for a moment. On your turn, you can take one additional action, except the Magic action.\nOnce you use this feature, you can’t do so again until you finish a Short or Long Rest. Starting at level 17, you can use it twice before a rest but only once on a turn."
+        },
+        {
+          "id": "fighter_tactical_mind",
+          "name": "Tactical Mind",
+          "level": 2,
+          "text": "You have a mind for tactics on and off the battlefield. When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check, potentially turning it into a success. If the check still fails, this use of Second Wind isn’t expended."
+        },
+        {
+          "id": "fighter_fighter_subclass",
+          "name": "Fighter Subclass",
+          "level": 3,
+          "text": "You gain a Fighter subclass of your choice. The Champion subclass is detailed after this class’s description. A subclass is a specialization that grants you features at certain Fighter levels. For the rest of your career, you gain each of your subclass’s features that are of your Fighter level or lower.",
+          "facts": [
+            {
+              "kind": "grantsSubclass"
+            }
+          ]
+        },
+        {
+          "id": "fighter_ability_score_improvement",
+          "name": "Ability Score Improvement",
+          "level": 4,
+          "text": "You gain the Ability Score Improvement feat (see “Feats”) or another feat of your choice for which you qualify. You gain this feature again at Fighter levels 6, 8, 12, 14, and 16.",
+          "facts": [
+            {
+              "kind": "grantsFeat",
+              "category": "General"
+            }
+          ]
+        },
+        {
+          "id": "fighter_extra_attack",
+          "name": "Extra Attack",
+          "level": 5,
+          "text": "You can attack twice instead of once whenever you take the Attack action on your turn."
+        },
+        {
+          "id": "fighter_tactical_shift",
+          "name": "Tactical Shift",
+          "level": 5,
+          "text": "Whenever you activate your Second Wind with a Bonus Action, you can move up to half your Speed without provoking Opportunity Attacks."
+        },
+        {
+          "id": "fighter_indomitable",
+          "name": "Indomitable",
+          "level": 9,
+          "text": "If you fail a saving throw, you can reroll it with a bonus equal to your Fighter level. You must use the new roll, and you can’t use this feature again until you finish a Long Rest.\nYou can use this feature twice before a Long Rest starting at level 13 and three times before a Long Rest starting at level 17."
+        },
+        {
+          "id": "fighter_tactical_master",
+          "name": "Tactical Master",
+          "level": 9,
+          "text": "When you attack with a weapon whose mastery property you can use, you can replace that property with the Push, Sap, or Slow property for that attack."
+        },
+        {
+          "id": "fighter_two_extra_attacks",
+          "name": "Two Extra Attacks",
+          "level": 11,
+          "text": "You can attack three times instead of once whenever you take the Attack action on your turn."
+        },
+        {
+          "id": "fighter_studied_attacks",
+          "name": "Studied Attacks",
+          "level": 13,
+          "text": "You study your opponents and learn from each attack you make. If you make an attack roll against a creature and miss, you have Advantage on your next attack roll against that creature before the end of your next turn."
+        },
+        {
+          "id": "fighter_epic_boon",
+          "name": "Epic Boon",
+          "level": 19,
+          "text": "You gain an Epic Boon feat (see “Feats”) or another feat of your choice for which you qualify. Boon of Combat Prowess is recommended.",
+          "facts": [
+            {
+              "kind": "grantsFeat",
+              "category": "Epic Boon"
+            }
+          ]
+        },
+        {
+          "id": "fighter_three_extra_attacks",
+          "name": "Three Extra Attacks",
+          "level": 20,
+          "text": "You can attack four times instead of once whenever you take the Attack action on your turn."
+        }
+      ],
+      "subclasses": [
+        {
+          "id": "champion",
+          "name": "Champion",
+          "source": {
+            "document": "SRD 5.2.1",
+            "section": "Fighter Subclass: Champion",
+            "page": 49
+          },
+          "features": [
+            {
+              "id": "champion_improved_critical",
+              "name": "Improved Critical",
+              "level": 3,
+              "text": "Your attack rolls with weapons and Unarmed Strikes can score a Critical Hit on a roll of 19 or 20 on the d20."
+            },
+            {
+              "id": "champion_remarkable_athlete",
+              "name": "Remarkable Athlete",
+              "level": 3,
+              "text": "Thanks to your athleticism, you have Advantage on Initiative rolls and Strength (Athletics) checks.\nIn addition, immediately after you score a Critical Hit, you can move up to half your Speed without provoking Opportunity Attacks."
+            },
+            {
+              "id": "champion_additional_fighting_style",
+              "name": "Additional Fighting Style",
+              "level": 7,
+              "text": "You gain another Fighting Style feat of your choice.",
+              "facts": [
+                {
+                  "kind": "grantsFeat",
+                  "category": "Fighting Style"
+                }
+              ]
+            },
+            {
+              "id": "champion_heroic_warrior",
+              "name": "Heroic Warrior",
+              "level": 10,
+              "text": "The thrill of battle drives you toward victory. During combat, you can give yourself Heroic Inspiration whenever you start your turn without it."
+            },
+            {
+              "id": "champion_superior_critical",
+              "name": "Superior Critical",
+              "level": 15,
+              "text": "Your attack rolls with weapons and Unarmed Strikes can now score a Critical Hit on a roll of 18–20 on the d20."
+            },
+            {
+              "id": "champion_survivor",
+              "name": "Survivor",
+              "level": 18,
+              "text": "You attain the pinnacle of resilience in battle, giving you these benefits.\nDefy Death. You have Advantage on Death Saving Throws. Moreover, when you roll 18–20 on a Death Saving Throw, you gain the benefit of rolling a 20 on it.\nHeroic Rally. At the start of each of your turns, you regain Hit Points equal to 5 plus your Constitution modifier if you are Bloodied and have at least 1 Hit Point."
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

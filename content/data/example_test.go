@@ -37,5 +37,5 @@ func ExampleBundledSource() {
 	// Output:
 	// found Dwarf
 	// not found
-	// 12 spells
+	// 73 spells
 }

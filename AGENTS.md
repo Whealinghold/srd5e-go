@@ -145,6 +145,7 @@ srd5e-go/
 │   ├── data/               # embedded SRD JSON (go:embed), created with the first content
 │   └── contenttest/        # FakeSource, FakeDecoder, contract suite
 ├── d20/                    # first bounded context (domain + use case, one package)
+├── character/              # character context (Phase 3): derived stats, aggregate, class behaviour
 ├── internal/
 │   └── archtest/           # architecture tests (import scan against the allow-list)
 └── scenarios/              # cross-package tests, public API only (package scenarios_test)
@@ -168,7 +169,7 @@ are the context map in `doc/rules/architecture.md` §2; change it there.
 
 - `d20/`: D20 Tests (ability checks, saving throws, attack rolls), DCs, Advantage and Disadvantage, success and failure resolution (exists)
 - `content/` (in progress, Phase 2): species, backgrounds, classes, feats, spells, equipment, monsters, and the content-source ports
-- `character/` (planned): abilities, Proficiency Bonus, level, derived stats, spellcasting, equipment rule maths
+- `character/` (in progress, Phase 3): abilities, Proficiency Bonus, level, derived stats, spellcasting, equipment rule maths
 - `combat/` (planned): initiative, actions, attacks, conditions, hit points, damage
 - `toolbox/` (planned): Gameplay Toolbox rules; downstream of all the others, nothing depends on it
 

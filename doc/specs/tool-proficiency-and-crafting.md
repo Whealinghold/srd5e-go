@@ -2,10 +2,14 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | Types 3; bulk data 5 |
 | Depends on | `content-equipment.md`, `content-spells.md`, `content-schema-and-decoder.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `d20-tests.md`, `equipment-rules.md`, `derived-stats.md`, `character-aggregate.md`, `spellcasting.md`, `magic-item-rules.md`, `errors-and-results.md` |
+
+**Implementation status.** Implemented in package `character` (pure domain code, no use case, no signal; tests named after the source files): `tool_proficiencies.go` (`ToolProficiencies`, `MonsterToolProficiencies`, FR-001 to FR-003), `tool_resolution.go` (`ResolvedTool`, `ToolResolution`, `ResolveTool`, FR-004 to FR-006), `tool_check.go` (`ToolCheckInput`, `ToolCheckBenefits`, `EvaluateToolCheck`, FR-007 to FR-017), `tool_utilize.go` (`UtilizeActions`, `UtilizeDC`, `UtilizeCheck`, FR-018 to FR-021), `crafting_party.go` (`CraftingWorker`, `CraftingParty`, `CraftingRole`, `ToolCraftingShortfall`, FR-023, FR-027, FR-028, FR-032), `crafting_plan.go` (`ItemCraftingInput`, `ItemCraftingPlan`, `PlanItemCrafting`, FR-024 to FR-033), `scribing_qualification.go` (`QualifyScribe`, FR-034), `scribing_job.go` (`BeginScribing`, `ScrollScribingJob`, `ScribedScroll`, FR-035 to FR-041, FR-043), `scribing_prepared_spells.go` (`PreparedSpellSet`, FR-042); architecture tests `internal/archtest/tool_proficiency_and_crafting_test.go` (FR-044 to FR-047, FR-049); FR-048 is tested on each type; FR-050 by the module-wide consumer-name check. Go shapes that differ from the prose of sections 5 and 6: the types are `content.Tool`, `content.Spell` and `content.ToolUtilizeAction`; `CharacterID` is the package's `Identifier`, and `NewCraftingParty` also rejects a zero id; validation errors are the package's `invalidInput` errors (matching `srderr.ErrInvalidInput`), as everywhere else in `character`, not an `*InvalidError`; `PlanItemCrafting` calls `Crafting{}.RequirementsFor` and, for an entry that method refuses (a nil item, a figure out of range), returns `ItemCraftingNotCraftable` with `NotCraftableNoCraftingRule`, because the plan returns no error; `NewScrollScribingJob(requiredDays, daysWorked, spell, scribeLevel, saveDC, attackBonus, cost)` takes the cost as well, so the job can report it; `BeginScribing` rejects with a `ScribingRejection` (`notQualified`, `tableMissing` for the zero table, `invalidStart` for a spell without a valid id or a zero scribe level), where the spec names only the first; `ResolveTool(nil, ...)` returns `ToolFamilyMissing` with empty ids; `NewPreparedSpellSet` builds a set directly; an override item (Potion of Healing) that lists no tool needs none, and an item with an override ignores the Game Master's tool.
+
+Not yet implemented: FR-022 (the tool facts over all 25 standalone and family tools and 14 variants) and FR-051 (the public-API scenario over the bundled equipment, `WorkHours(1200, 2)` for Plate Armor), both of which need the Phase 5 equipment data; the bundled slice has no tool entries, so the facts are tested on synthetic tools.
 
 ## 1. Purpose and scope
 

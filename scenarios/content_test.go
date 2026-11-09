@@ -41,8 +41,8 @@ func TestWholeContentSlice(t *testing.T) {
 		}
 		total += len(list)
 	}
-	if total != 17 {
-		t.Errorf("bundled entries = %d, want 17", total)
+	if total != 89 {
+		t.Errorf("bundled entries = %d, want 89 (the slice, the Fighter, the Barbarian, the Monk, the Rogue, the Cleric, the Druid, the Bard, the Sorcerer, the Warlock, the Paladin and the Ranger, and the 61 level 0 to 9 spells that the class files name)", total)
 	}
 
 	present := content.NewKey(content.KindSpell, content.MustID("fireball"))

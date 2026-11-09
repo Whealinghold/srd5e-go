@@ -2,12 +2,26 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `errors-and-results.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `observability-ports.md`, `d20-tests.md`, `content-schema-and-decoder.md`, `content-spells.md`, `derived-stats.md`, `equipment-rules.md`, `character-aggregate.md`, `rests-and-hit-dice.md` |
 
 Dependency notes (prose only; FR-056): `character-aggregate.md` gives `character.Event` and `CharacterID` only; `content-schema-and-decoder.md` the typed ids and `MissingContent`; `equipment-rules.md` (its FR-075) the Armor Training result from which the caller sets `UntrainedArmorWorn`. No `combat` spec is listed (shared-types-and-ownership.md FR-013 to FR-016). `resolve-d20-test-use-case.md` is cited in prose only: this context never rolls. No port or `content.Source` is used. The casting rules and Concentration transitions are `casting-and-concentration.md` (rank 14), which depends on this spec and is not listed here.
+
+**Implementation status.** Implemented in package `character` (one file per concept, tests named after the source files; no requirement needs Phase 5 data, so every id of section 4 is a T id with a test): `spellcasting_class.go` (`SpellcastingClass`, `SpellcastingFeature`, `SpellcastingFocusKind`), `spellcasting_stats.go`, `spell_slot_tables.go` (Tables C to G as constants), `spell_slots.go`, `spell_lists.go`, `class_spellcasting.go`, `spell_preparation.go`, `spellcasting_state.go`, `spellcasting_event.go`, `spellcasting_shapes.go` (`Concentration`, `CastSource`, `SpellSlotChoice`, `CastingInProgress`), the use cases `calculate_spellcasting_usecase.go`, `create_spellcasting_usecase.go`, `spell_preparation_usecase.go` and `spell_slot_usecase.go`, with the instruments in `spellcasting_signals.go` and the names in `signals.go`. `internal/archtest` adds `spellcasting_test.go` (FR-136 export scan, silent domain, no nested use case). Spec corrections made while implementing, all decided in the code:
+
+- **Tables are constants, not content rows.** The pure functions of section 5 take no content, so Tables C to G are `const` strings read by `PreparedLimit`, `CantripLimit`, `MaxPreparableLevel` and `SpellSlots.ForLevels` (check A4 forbids a package-level table; plan P10), not `content.ClassDefinition` rows. FR-039 compares them with `testdata/srd/spellcaster_slots.txt`.
+- **Names.** `CharacterID` is `Identifier` and `character.Event` is `Event`. The class constants are `CasterBard` to `CasterWizard`. Use cases are built by `New<UseCase>(opts ...Option)` and return the value (no port, so no error); `SlotOperationRejection` and `SpellcastingAdvanceRejection` are typed `int` enums (`SlotOperationNoSlotAvailable`, `SpellcastingAdvanceLevelLowered`, ...) rather than structs holding a kind. `ChoiceCount` carries a class and a number for `SpellsToChoose` and `CantripsToChoose`.
+- **FR-093.** `NewClassSpellcasting(setup, level, spells)` takes the class level and the spell map because the checks of FR-040 to FR-052 need both; an invalid class, level or allowance, or a spell absent from the map, is a plain `srderr.ErrInvalidInput` error before the joined `*PreparationProblem` list.
+- **FR-143.** `ChoosePreparation` and `ChangePreparation` return `(PreparationOutcome, error)`; the error is non-nil only for `ErrClassNotHeld` (FR-126) and a malformed change. `PreparationChange` leaves a list unchanged when its slice is nil and empties it when it is empty and non-nil. `PreparationChange.Prepared` is the complete new prepared list including the always-prepared spells (which do not count against the limit and must all stay, FR-046). A granted-cantrip replacement is a `GrantedCantripReplacement` whose `With` names the same class; a replaced cantrip that was not granted is an invalid-input error.
+- **FR-110.** `RegainSlot` with a count below 1 restores nothing and gives `NoExpendedSlot`; the use case `RegainSpellSlot` rejects a count below 1 as invalid input instead.
+- **FR-112.** `Advance` raises no event today (`Events()` is empty); `SpellsToChoose` and `CantripsToChoose` list every held spellcasting class in class-level order.
+- **FR-025.** A rest that restores slots raises one `SpellSlotsRestored` event holding the count of both pools.
+- **FR-087.** `ErrClassNotHeld` and the other command errors found after the span starts are recorded with `RecordError` and error status on the span only; zero-value commands and a cancelled `ctx` are returned before any signal, as in the other `character` use cases. The span carries `srd5e.character.operation`; the `spell_slots_restored` counter carries `srd5e.character.result` as well as `rest_kind`.
+- **FR-092.** A `GrantedCantrip` in a setup must name that setup's class (a mismatch is invalid input) and a class not held is `ErrClassNotHeld`.
+
+Not yet implemented: FR-147 (an item cast): `CastSpell` has no item mode (its `CastSource` values are slot, cantrip, ritual, feature_granted, scroll and duplicated); the fixed-cost item numbers are `ItemSpellLevel` and `ItemSpellStats` of `magic-item-effects.md`. The casting-side halves of FR-038, FR-068 and FR-129 are implemented by `casting-and-concentration.md`. The spec's scenario row is `scenarios/spellcasting_test.go`.
 
 ## 1. Purpose and scope
 

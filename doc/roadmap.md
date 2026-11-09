@@ -1,6 +1,6 @@
 # srd5e Roadmap
 
-Status: Phases 1 and 2 are implemented in Go (Phase 2 specs partly) and Phase 0 is partly implemented; later phases are proposed.
+Status: Phase 1 is implemented in Go. Phase 3 is implemented in Go with open items (see Phase 3 below). Phase 2 is implemented in Go with open items (specs partly; accepted as done by the maintainer on 2026-10-31, see Phase 2 below). Phase 0 is partly implemented. Later phases are proposed.
 Phases are ordered by the context map in
 [rules/architecture.md](rules/architecture.md) §2, which is itself provisional.
 Each phase is a vertical slice that ships tested, instrumented, documented
@@ -72,7 +72,7 @@ No upstream dependencies, and the core of the ruleset.
 
 ## Phase 2: `content` context
 
-**Status: implemented in Go (specs partly).** The `content` package, `content/contenttest` and `content/data` (the 17-entry slice) ship; the specs stay `partially implemented` with their own "Not yet implemented" lines.
+**Status: implemented in Go (specs partly), with open items; accepted as done by the maintainer on 2026-10-31 although the mutation gate is unmet on some files.** The `content` package, `content/contenttest` and `content/data` (the 17-entry slice) ship; the specs stay `partially implemented` with their own "Not yet implemented" lines. Mutation results and the open items (the fidelity review of the bundled SRD text against the PDF, which has not been done by a person; the mutation gate unmet on `decode_number.go`, `load_usecase.go` and `catalogue.go`, borderline on `validate_set.go`; killed/total under 80% in the partial run on `class_feature.go`, `class_entry.go` and `class_ability.go`, not investigated; and no mutation run on the per-kind files) are in `doc/plans/plan-phase-2.md` section 11.
 
 - `ContentSource` port (consumer-side interface, `context.Context` first) with a
   `Lookup` result interface whose variants are a closed set.
@@ -93,7 +93,7 @@ FR-032 already describe this `go:embed` delivery).
 
 ## Phase 3: `character` context
 
-**Status: not started.**
+**Status: implemented in Go with open items (closed by step 13 of [plans/plan-phase-3.md](plans/plan-phase-3.md)).** The `character` package, the twelve classes with their subclasses (`content/data/class_*.json`) and 73 spells are built; the specs of the phase are `implemented` or `partially implemented` (the table below). What remains open is data, scenarios and the deferred code listed next. Deferred code: none. The Bard `ApplyBardLevelGain` composite of [class-bard.md](specs/class-bard.md) is deliberately not a use case (the host composes `AdvanceBard` with the generic level, spellcasting and feat services, as for the Cleric); its pure Bard rules are built in `character/bard_level_gain.go`. The other class specs' "Not yet implemented" lines were audited: each item is superseded, owned by another spec or the host, or waits on Phase 5 data. Also open: the Phase 5 data (the remaining 266 spells, equipment, feats, backgrounds, magic items, species not yet bundled) that the specs name in their "Not yet implemented" lines, the extraction tool and drift check of content-classes-data.md (FR-086 to FR-092), the full-spell-set class-list coverage (content-classes-data.md FR-100, FR-101), a few unwritten scenarios (a feat taken at level 4, a Wizard scroll copy) and the manual comparison of the class texts against the PDF.
 
 - Proficiency Bonus, level, derived stats (AC, HP, saves,
   skills) and the character aggregate.
@@ -161,15 +161,15 @@ Monster abilities that need the `combat` types ship here too: limited use
 
 Roll-up of the `Status` row in each spec header (values in
 [specs/_template.md](specs/_template.md)). A spec flips status in the same
-change as the code. The kernel packages, `d20` and `content` exist; there are no
-`character`, `combat` or `toolbox` packages yet.
+change as the code. The kernel packages, `d20`, `content` and `character` exist; there are no
+`combat` or `toolbox` packages yet.
 
 | Status | Count | Specs |
 |---|---|---|
-| implemented | 4 | `ability-scores`, `d20-tests`, `dice-and-rolls`, `modifiers-and-advantage` |
-| partially implemented | 16 | `errors-and-results`, `observability-ports`, `architecture-guardrails`, `shared-types-and-ownership`, `resolve-d20-test-use-case` and the `content` specs (`content-schema-and-decoder`, `content-source-port`, `content-species-backgrounds-feats`, `content-classes`, `content-equipment`, `content-magic-items`, `content-monsters`, `spell-effect-data`, `content-spells`, `content-thin-slice`, `content-licensing-and-notice`) |
+| implemented | 11 | `ability-scores`, `d20-tests`, `dice-and-rolls`, `modifiers-and-advantage`, and the `character` specs `casting-and-concentration`, `class-wizard-evoker`, `exploration`, `heroic-inspiration`, `higher-level-start-equipment-and-trinkets`, `social-interaction`, `wish-spell` |
+| partially implemented | 43 | `errors-and-results`, `observability-ports`, `architecture-guardrails`, `shared-types-and-ownership`, `resolve-d20-test-use-case`, the other `character` specs (`equipment-rules`, `derived-stats`, `character-aggregate`, `character-creation`, `rests-and-hit-dice`, `weapon-properties-and-mastery`, `spellcasting`, `magic-item-rules`, `magic-item-effects`, `level-advancement-and-multiclassing`, `tool-proficiency-and-crafting`, `feats-behaviour`, `spell-scroll-use`, `species-trait-behaviour` and the twelve `class-*` specs except the Evoker) and the `content` specs (`content-schema-and-decoder`, `content-source-port`, `content-species-backgrounds-feats`, `content-classes`, `content-equipment`, `content-magic-items`, `content-monsters`, `spell-effect-data`, `content-spells`, `content-thin-slice`, `content-licensing-and-notice`) |
 | accepted | 0 | none |
-| draft | 81 | every other spec in `specs/`, including `release-0-1-0` |
+| draft | 47 | every other spec in `specs/` (combat, monsters, `toolbox`, spell effects), including `release-0-1-0` |
 
 ## Planning notes
 
@@ -180,7 +180,7 @@ change as the code. The kernel packages, `d20` and `content` exist; there are no
    behaviour specs, the Rules Glossary coverage table and the spell, monster,
    magic item, summoned creature and grid specs added by the later reconciliation
    passes (listed in [documentation_index.md](documentation_index.md)). All of
-   them except the 20 implemented or partially implemented specs are drafts.
+   them except the 54 implemented or partially implemented specs are drafts.
    The remaining work is implementation, phase by phase, each spec flipping to
    `implemented` in the change that ships it. New gaps found while coding get a new spec or a new
    requirement id (never a renumbering), with its rank in

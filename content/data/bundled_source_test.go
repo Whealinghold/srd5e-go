@@ -103,8 +103,8 @@ func TestBundledSourceDeterministicAndCopies(t *testing.T) {
 	list, _ := a.ListKind(context.Background(), content.KindSpell)
 	clear(list)
 	again, _ := a.ListKind(context.Background(), content.KindSpell)
-	if len(again) != 12 || again[0] == nil {
-		t.Errorf("ListKind after clearing a returned list = %d entries, first %v; want the 12 spells intact", len(again), again[0])
+	if len(again) != 73 || again[0] == nil {
+		t.Errorf("ListKind after clearing a returned list = %d entries, first %v; want the 73 spells intact", len(again), again[0])
 	}
 }
 
@@ -168,7 +168,7 @@ func TestDuplicateKeyAcrossDocuments(t *testing.T) {
 	if src != nil || !errors.As(err, &bad) || errors.As(err, &dup) || len(bad.DecodeProblems) != 0 {
 		t.Fatalf("NewBundledSource(duplicate) = (%v, %v), want nil and a *BundledInvalidError with only reference problems", src, err)
 	}
-	if len(bad.ReferenceProblems) != 12 {
+	if len(bad.ReferenceProblems) != 73 {
 		t.Fatalf("ReferenceProblems = %d, want one per spell", len(bad.ReferenceProblems))
 	}
 	for _, p := range bad.ReferenceProblems {

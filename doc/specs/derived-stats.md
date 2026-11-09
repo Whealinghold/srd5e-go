@@ -2,10 +2,21 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `ability-scores.md`, `modifiers-and-advantage.md`, `d20-tests.md`, `content-source-port.md`, `content-schema-and-decoder.md`, `content-classes.md`, `content-equipment.md`, `equipment-rules.md`, `errors-and-results.md`, `observability-ports.md` |
+
+**Implementation status.** Implemented in package `character` (one file per concept, tests named after the source files, `calculate_derived_stats.go` for the use case, `signals.go` for the signal names): every requirement id of section 4, which are all testable now (none needs Phase 5 data). `internal/archtest` enforces FR-063 and FR-069 through its general checks (A1 import allow-list, A7 sealed sets documented, A9 naming and no stutter). Spec corrections made while implementing, all decided in the code:
+
+- **`Level`, not `CharacterLevel`.** `shared-types-and-ownership.md` FR-008 (binding) names the type `Level` "no stutter", and check A9 and `go.md` section 1 reject `character.CharacterLevel`. So `NewCharacterLevel`, `MustCharacterLevel`, `CharacterLevelError` and `CharacterLevelRejection` (with its members) are `NewLevel`, `MustLevel`, `LevelError`, `LevelRejection`, `LevelBelowMinimum`, `LevelAboveMaximum`; the bounds are `MinLevel` and `MaxLevel`. Other specs that say `CharacterLevel` (`character-aggregate.md`, `feats-behaviour.md`, `tool-proficiency-and-crafting.md`, `higher-level-start-equipment-and-trinkets.md`, `spell-scroll-use.md`, `species-trait-behaviour.md`, `rule-options.md`, the toolbox specs) are read as `character.Level`; each is edited in the PR that implements it.
+- **Go forms of the spec names.** `ProficiencyBonus.forLevel` is the package function `ProficiencyBonusFor(Level)`; `toRollModifiers`, `total` and the other lower camel case members are exported methods (`ToRollModifiers`, `Total`); `DerivedStatSource` members carry the suffix `Term` (`BaseValueTerm`, `FlatBonusTerm`); the enums of FR-064 and FR-053 are `BasisNotApplicable`, `BasisAlternativeNotSupplied`, `BodyArmorSlot` and `ShieldSlot`; `ChooseAlternative` is a struct with an `ID` field. `ArmorClassBasis` has the three variants of section 5 and `DerivedStats.ArmorClassBasis()` reports the one used.
+- **Collections are exposed through copying accessors** (FR-075): `CalculateDerivedStatsContentMissing.Missing()` and `SkillProficienciesError.ExpertiseWithoutProficiency()` replace the exported fields of the spec text.
+- **No command constructor.** `CalculateDerivedStatsCommand` and `DerivedStatsInput` are keyed-literal structs; `Run` and `Calculate` validate them and return an error matching `srderr.ErrInvalidInput` (FR-076, FR-080 and the zero values of the required fields) before any lookup, which is the reading of "from the command constructor" in the FR-076 case row. `NewCalculateDerivedStats(opts ...Option)` returns an error when `WithSource` is missing; `Option`, `WithSource`, `WithTelemetry` and `WithClock` are shared by the later `character` use cases. The source is the one-method `ContentSource` (only `Lookup` is needed). A cancelled `ctx` is returned unwrapped before any signal, as `content.Loader` does.
+- **FR-038 and FR-079 sources.** `MagicItemFlatBonusSource` holds a `content.MagicItemID` (the id type of the magic item catalogue), not an `ItemID`; the "host-defined source" is `FeatureFlatBonusSource{content.FeatureID}`, so class and feat features such as a Fighting Style can supply a flat bonus. `FlatBonus` is built with `NewFlatBonus` and rejects a nil source.
+- **FR-060** `HitPointMaximum.Plus` never goes below 1. **FR-071** `IsBloodied` also rejects the zero maximum. **FR-073** `HitDicePool.Plus` of an invalid die returns an equal pool. **FR-067** `NewModifierBreakdown` joins plain errors matching `srderr.ErrInvalidInput`, one per violation, and also rejects an invalid source. **FR-053** the use case checks the rule subtype of both ids, `armorId` first, so the armor is reported even when only the Shield id is a non-`Armor` entry; the calculator repeats the check for callers that hold resolved armor.
+
+Not yet implemented: the all-bundled-armor rows (every Armor table row through the use case) wait for the Phase 5 equipment data; the synthetic fixtures cover each rule. `scenarios/derived_stats_test.go` runs the level 5 Wizard of section 8 over the bundled slice.
 
 The header lists specs only (`shared-types-and-ownership.md` FR-056); the types
 each supplies are listed in section 5. `HitPointDie` is `content-schema-and-decoder.md`
@@ -19,7 +30,7 @@ FR-072), which the use case calls.
 
 This spec is the `character` context's foundation. It owns the value types every
 other `character` spec builds on (`shared-types-and-ownership.md` FR-008):
-`CharacterLevel`, `ClassLevels`, `ProficiencyBonus`, `HitPointMaximum`,
+`Level`, `ClassLevels`, `ProficiencyBonus`, `HitPointMaximum`,
 `HitDicePool` and `HitPointGain` (keyed by the `content`-owned `HitPointDie`). It
 also computes the numbers a character sheet records: the Hit Point maximum including
 bonuses, Armor Class, saving throw and skill modifiers, and Passive Perception, each
@@ -71,7 +82,7 @@ files: `doc/rules/`.
 
 | SRD term | Type | Notes |
 |---|---|---|
-| Level | `CharacterLevel` (FR-057) | 1 to 20; total level is the sum of `ClassLevels`. |
+| Level | `Level` (FR-057) | 1 to 20; total level is the sum of `ClassLevels`. |
 | Class levels | `ClassLevels` (FR-058) | Ordered; first entry is the initial class. |
 | Proficiency Bonus | `ProficiencyBonus` (FR-059) | From total level (p. 23, p. 25). |
 | Hit Point maximum | `HitPointMaximum` (FR-060) | The stored base; the result adds bonuses (FR-050). |
@@ -98,15 +109,15 @@ listed once at the end of this section.
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-057 | `CharacterLevel` MUST hold an integer from 1 to 20 inclusive. `NewCharacterLevel(n int) (CharacterLevel, error)` is a scalar constructor (errors-and-results.md FR-035): for a value outside 1 to 20 it returns a `*CharacterLevelError{Value, Reason}` matching `srderr.ErrInvalidInput`, with `Reason` the enum `CharacterLevelRejection` (`BelowMinimum`, `AboveMaximum`). It MUST NOT panic; `MustCharacterLevel` panics with that same error if and only if `NewCharacterLevel` returns one (errors-and-results.md FR-026). The zero `CharacterLevel` is invalid (`IsZero`). | SRD 5.2.1, "Level Advancement", Character Advancement table, p. 23 | happy / unhappy (boundary) |
-| FR-058 | `ClassLevels` MUST be an ordered, defensively copied sequence of (`ClassID`, level) entries (`NewClassLevels(entries []ClassLevel) (ClassLevels, error)`), each level at least 1, no class repeated, at least one entry, total at most 20. The first entry MUST be the initial class. `TotalLevel()` MUST be the sum and a valid `CharacterLevel`. `NewClassLevels` is an aggregate constructor (errors-and-results.md FR-023): on failure it returns an `errors.Join` of one `*ClassLevelsError{Problem}` per **violated** invariant, each `ClassLevelsProblem` (enum: `Empty`, `LevelBelowMinimum`, `DuplicateClass`, `TotalAboveMaximum`) at most once, in enum order, each matching `srderr.ErrInvalidInput`. It MUST NOT panic; `MustClassLevels` panics with that error if and only if `NewClassLevels` returns one. | SRD 5.2.1, "Multiclassing" ("Experience Points", "Proficiencies"), p. 25; "Level Advancement", p. 23 | happy / unhappy (invalid input) |
+| FR-057 | `Level` MUST hold an integer from 1 to 20 inclusive. `NewLevel(n int) (Level, error)` is a scalar constructor (errors-and-results.md FR-035): for a value outside 1 to 20 it returns a `*LevelError{Value, Reason}` matching `srderr.ErrInvalidInput`, with `Reason` the enum `LevelRejection` (`BelowMinimum`, `AboveMaximum`). It MUST NOT panic; `MustLevel` panics with that same error if and only if `NewLevel` returns one (errors-and-results.md FR-026). The zero `Level` is invalid (`IsZero`). | SRD 5.2.1, "Level Advancement", Character Advancement table, p. 23 | happy / unhappy (boundary) |
+| FR-058 | `ClassLevels` MUST be an ordered, defensively copied sequence of (`ClassID`, level) entries (`NewClassLevels(entries []ClassLevel) (ClassLevels, error)`), each level at least 1, no class repeated, at least one entry, total at most 20. The first entry MUST be the initial class. `TotalLevel()` MUST be the sum and a valid `Level`. `NewClassLevels` is an aggregate constructor (errors-and-results.md FR-023): on failure it returns an `errors.Join` of one `*ClassLevelsError{Problem}` per **violated** invariant, each `ClassLevelsProblem` (enum: `Empty`, `LevelBelowMinimum`, `DuplicateClass`, `TotalAboveMaximum`) at most once, in enum order, each matching `srderr.ErrInvalidInput`. It MUST NOT panic; `MustClassLevels` panics with that error if and only if `NewClassLevels` returns one. | SRD 5.2.1, "Multiclassing" ("Experience Points", "Proficiencies"), p. 25; "Level Advancement", p. 23 | happy / unhappy (invalid input) |
 | FR-072 | `ClassLevels.WithLevelIn(ClassID) (ClassLevels, error)` MUST return a new `ClassLevels` and leave the receiver unchanged (value receiver). A held class is raised by 1 and every entry keeps its position; a class not held is appended last at level 1. The first entry is unchanged. It MUST return an error (`*ClassLevelsError` with `TotalAboveMaximum`, matching `srderr.ErrInvalidInput`) when the new total would exceed 20 (the caller checks the cap), so the result satisfies FR-058. A host convenience: `character-aggregate.md` builds through the constructors (its D-20) and is not required to adopt it (section 9). | SRD 5.2.1, "Multiclassing", p. 24-25; "Level Advancement", p. 23 | happy / unhappy (boundary) |
 
 Cases (FR-057, FR-058):
 
 | Label | Input | Expected | Path |
 |---|---|---|---|
-| level 0 / 21 | `CharacterLevel` 0 / 21 | `belowMinimum` / `aboveMaximum` | unhappy (boundary) |
+| level 0 / 21 | `Level` 0 / 21 | `belowMinimum` / `aboveMaximum` | unhappy (boundary) |
 | empty | no entries | `empty` | unhappy (empty and minimal) |
 | class repeated | 2 Fighter, 1 Rogue, 1 Fighter | `duplicateClass` | unhappy (invalid input) |
 | total 20 / 21 | 10 Fighter, 10 Rogue / 11 Fighter, 10 Rogue | valid / `totalAboveMaximum` | unhappy (boundary) |
@@ -128,7 +139,7 @@ Cases (FR-072):
 |---|---|---|---|
 | FR-009 | The `proficiencyBonus` in the result MUST be `ProficiencyBonus.forLevel` (FR-059) of the total level (the sum of the `ClassLevels`), not of the level in any one class. | SRD 5.2.1, "Multiclassing" ("Proficiency Bonus"), p. 25 | unhappy (rule interaction) |
 | FR-010 | A Proficiency Bonus MUST appear at most once in the breakdown of any one modifier, as one term whose source is `proficiencyBonus` or, for Expertise, `expertise` (the doubled bonus is one term). The `NewModifierBreakdown` constructor returns an error matching `srderr.ErrInvalidInput` for a second such term (FR-067). | SRD 5.2.1, "The Bonus Doesn't Stack", p. 8 | unhappy (rule interaction) |
-| FR-059 | `ProficiencyBonus` MUST be a value object whose `forLevel(CharacterLevel)` returns +2 for levels 1 to 4, +3 for 5 to 8, +4 for 9 to 12, +5 for 13 to 16 and +6 for 17 to 20. It exposes `int get value` (2 to 6), which callers convert to a kernel `Modifier(proficiencyBonus.value)` (`attacks.md` FR-124). | SRD 5.2.1, "Level Advancement", p. 23; "Proficiency", p. 8 | happy / unhappy (boundary) |
+| FR-059 | `ProficiencyBonus` MUST be a value object whose `forLevel(Level)` returns +2 for levels 1 to 4, +3 for 5 to 8, +4 for 9 to 12, +5 for 13 to 16 and +6 for 17 to 20. It exposes `int get value` (2 to 6), which callers convert to a kernel `Modifier(proficiencyBonus.value)` (`attacks.md` FR-124). | SRD 5.2.1, "Level Advancement", p. 23; "Proficiency", p. 8 | happy / unhappy (boundary) |
 
 Cases (FR-059, FR-009). Source p. 8 for band rows, p. 25 for multiclass rows.
 
@@ -408,7 +419,7 @@ Failure precedence cases (FR-068); each row supplies two failures at once:
 
 | Id | Requirement |
 |---|---|
-| FR-001, FR-007, FR-008 | Withdrawn: moved to derived-stats.md as FR-057 (`CharacterLevel`), FR-058 (`ClassLevels.totalLevel`), FR-059 (the Proficiency Bonus table) |
+| FR-001, FR-007, FR-008 | Withdrawn: moved to derived-stats.md as FR-057 (`Level`), FR-058 (`ClassLevels.totalLevel`), FR-059 (the Proficiency Bonus table) |
 | FR-002 to FR-005 | Withdrawn: moved to character-aggregate.md (`ExperiencePoints`, level from XP, cap at 20, `minimumForLevel`) |
 | FR-006 | Withdrawn: no `LevelHistory` (`shared-types-and-ownership.md` FR-008) |
 | FR-011 | Withdrawn: moved to `content` (`shared-types-and-ownership.md` FR-005, FR-006; `Skill` and its `Ability`) |
@@ -430,7 +441,7 @@ Domain files of package `character` (one file per concept), pure and immutable (
   `MissingContent` (`content`); `ArmorRules.BaseArmorClass`, `ArmorBase`
   (`equipment-rules.md`). The domain never touches `content.Source`, a use case or
   a `Character`.
-- **Owned types** (`shared-types-and-ownership.md` FR-008): `CharacterLevel`,
+- **Owned types** (`shared-types-and-ownership.md` FR-008): `Level`,
   `ClassLevels` (with `WithLevelIn`, FR-072), `ProficiencyBonus`,
   `HitPointMaximum`, `HitDicePool` (with `Plus`, FR-073), `HitPointGain`
   (`RolledHitPointGain` | `FixedHitPointGain`). Exported from package `character`.
@@ -467,7 +478,7 @@ Domain files of package `character` (one file per concept), pure and immutable (
 
 | Constructor or failure | Error type (kind) | Typed data and reasons |
 |---|---|---|
-| `NewCharacterLevel` (scalar) | `*CharacterLevelError` (single reason) | `Value`, `Reason` of enum `CharacterLevelRejection` |
+| `NewLevel` (scalar) | `*LevelError` (single reason) | `Value`, `Reason` of enum `LevelRejection` |
 | `NewClassLevels` (aggregate) | `errors.Join` of `*ClassLevelsError` | `Problem` of enum `ClassLevelsProblem` |
 | `NewSkillProficiencies` (aggregate) | `*SkillProficienciesError` | `ExpertiseWithoutProficiency` (every offending `Skill`) |
 | `NewHitPointMaximumBonus` (aggregate) | `errors.Join` of `*HitPointMaximumBonusError` | `Problem` of enum `HitPointMaximumBonusProblem` |
@@ -547,7 +558,7 @@ as FR-057 and FR-058, FR-002 to FR-005 by `character-aggregate.md`.
 
 | Id | Level | Notes |
 |---|---|---|
-| FR-057, FR-058, FR-075 | unit | Level 0, 1, 20, 21 and the cases table through `NewCharacterLevel`; `MustX` panics exactly when `NewX` returns an error (the same error value); several problems joined in enum order; a single problem accepted; `*ClassLevelsError`, `*HitPointMaximumBonusError`, `*SkillProficienciesError`, `*BreakdownMappingError` and `CalculateDerivedStatsContentMissing` are never built with an empty problem list and expose copies. |
+| FR-057, FR-058, FR-075 | unit | Level 0, 1, 20, 21 and the cases table through `NewLevel`; `MustX` panics exactly when `NewX` returns an error (the same error value); several problems joined in enum order; a single problem accepted; `*ClassLevelsError`, `*HitPointMaximumBonusError`, `*SkillProficienciesError`, `*BreakdownMappingError` and `CalculateDerivedStatsContentMissing` are never built with an empty problem list and expose copies. |
 | FR-072, FR-073 | unit | `WithLevelIn` and `Plus` cases, including total 20 plus one (an error matching `srderr.ErrInvalidInput`), receiver unchanged, equality with `HitDicePoolFromLevels`. |
 | FR-059, FR-009, FR-020, FR-021 | unit, application | Band edges; 3 Fighter / 2 Rogue and 4 Cleric / 4 Fighter through the use case; Passive Perception cases for advantage, disadvantage, normal. |
 | FR-012 to FR-019, FR-049, FR-079 | unit | Skill and save cases (levels 1, 5, 20); no proficiencies and all proficient give 18 and 6 modifiers; Expertise outside the proficient set (all listed at once); Wizard initial class plus a Fighter level (no Strength or Constitution save); the initial class is the first entry, not the highest level; `additionalSavingThrows` union (Fighter 5 / Rogue 15 adds Wisdom and Charisma, Rogue 14 does not); flat save bonus all and scoped; `MustX` panics exactly when `NewX` returns an error. |
@@ -595,7 +606,7 @@ words (p. 28, p. 92).
 
 `CHANGELOG.md`, under `Unreleased`:
 
-- **Added:** the `character` foundation types (`CharacterLevel`, `ClassLevels`,
+- **Added:** the `character` foundation types (`Level`, `ClassLevels`,
   `ProficiencyBonus`, `HitPointMaximum`, `HitDicePool`, `HitPointGain`), derived
   stats with breakdowns through `CalculateDerivedStats` and the signals
   `srd5e.character.derived_stats.*`, `IsBloodied`, `ModifierBreakdown.ToRollModifiers()`,

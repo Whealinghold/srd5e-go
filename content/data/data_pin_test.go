@@ -39,7 +39,7 @@ func embeddedDocuments(t *testing.T) map[string]string {
 }
 
 // Requirement: doc/specs/content-thin-slice.md FR-067 and doc/plans/plan-phase-2.md 5.6 - the embedded file
-// list is exactly the three slice documents, in lexical order, so a well-formed extra file in content/data fails.
+// list is exactly the slice documents, the Fighter, Barbarian, Monk, Rogue, Cleric, Druid, Bard, Sorcerer, Warlock, Paladin and Ranger files, in lexical order, so a well-formed extra file in content/data fails.
 // Path: unhappy (boundary: nothing beyond the slice).
 func TestFilesAreExactlyTheSliceDocuments(t *testing.T) {
 	t.Parallel()
@@ -51,17 +51,16 @@ func TestFilesAreExactlyTheSliceDocuments(t *testing.T) {
 	for _, e := range entries {
 		names = append(names, e.Name())
 	}
-	if want := []string{"class_wizard.json", "species.json", "spells.json"}; !slices.Equal(names, want) {
+	if want := []string{"class_barbarian.json", "class_bard.json", "class_cleric.json", "class_druid.json", "class_fighter.json", "class_monk.json", "class_paladin.json", "class_ranger.json", "class_rogue.json", "class_sorcerer.json", "class_warlock.json", "class_wizard.json", "species.json", "spells.json"}; !slices.Equal(names, want) {
 		t.Errorf("Files() = %v, want %v", names, want)
 	}
 }
 
-// Requirement: doc/specs/content-thin-slice.md FR-067 - each embedded document decodes with zero problems into 4, 1 and
-// 12 entries, the source holds exactly 17 entries, and whole-set validation passes over the merged documents.
+// Requirement: doc/specs/content-thin-slice.md FR-067 - each embedded document decodes with zero problems into 4, 1 and 73 entries (plus the Fighter, Barbarian, Monk, Rogue, Cleric, Druid, Bard, Sorcerer, Warlock, Paladin and Ranger files), the source holds exactly 89 entries, and whole-set validation passes over the merged documents.
 // Path: happy.
 func TestEachDocumentDecodesAndTheSetValidates(t *testing.T) {
 	t.Parallel()
-	want := map[string]int{"species.json": 4, "class_wizard.json": 1, "spells.json": 12}
+	want := map[string]int{"species.json": 4, "class_barbarian.json": 1, "class_bard.json": 1, "class_cleric.json": 1, "class_druid.json": 1, "class_fighter.json": 1, "class_monk.json": 1, "class_paladin.json": 1, "class_ranger.json": 1, "class_rogue.json": 1, "class_sorcerer.json": 1, "class_warlock.json": 1, "class_wizard.json": 1, "spells.json": 73}
 	var sets []content.Set
 	for name, text := range embeddedDocuments(t) {
 		set, err := content.JSONDecoder{}.Decode([]byte(text))
@@ -78,8 +77,8 @@ func TestEachDocumentDecodesAndTheSetValidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ValidateSet problems = %v", content.ReferenceProblems(err))
 	}
-	if n := len(merged.Entries()); n != 17 {
-		t.Errorf("merged set = %d entries, want 17", n)
+	if n := len(merged.Entries()); n != 89 {
+		t.Errorf("merged set = %d entries, want 89", n)
 	}
 	src := newSlice(t)
 	total := 0
@@ -90,8 +89,8 @@ func TestEachDocumentDecodesAndTheSetValidates(t *testing.T) {
 		}
 		total += len(got)
 	}
-	if total != 17 {
-		t.Errorf("BundledSource holds %d entries, want 17", total)
+	if total != 89 {
+		t.Errorf("BundledSource holds %d entries, want 89", total)
 	}
 }
 
@@ -109,10 +108,14 @@ func TestMembership(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if want := sliceIDs()[k]; !slices.Equal(idsOf(got), want) { // nil want for the kinds with no entry
-				t.Errorf("ListKind(%s) ids = %v, want %v", k, idsOf(got), want)
+			wantIDs := sliceIDs()[k]
+			if k == content.KindSpell {
+				wantIDs = bundledSpellIDs()
 			}
-			for _, id := range sliceIDs()[k] {
+			if !slices.Equal(idsOf(got), wantIDs) { // nil want for the kinds with no entry
+				t.Errorf("ListKind(%s) ids = %v, want %v", k, idsOf(got), wantIDs)
+			}
+			for _, id := range wantIDs {
 				if e := lookup(t, src, k, id); e.Key() != content.NewKey(k, content.MustID(id)) {
 					t.Errorf("Lookup(%s %s) key = %v", k, id, e.Key())
 				}
@@ -131,8 +134,8 @@ func TestLookupOutsideTheSlice(t *testing.T) {
 		kind content.Kind
 		id   string
 	}{
-		{content.KindSpell, "light"}, {content.KindSpell, "ray_of_frost"}, {content.KindSpecies, "gnome"},
-		{content.KindCharacterClass, "evoker"}, {content.KindCharacterClass, "fighter"},
+		{content.KindSpell, "light"}, {content.KindSpell, "mage_hand"}, {content.KindSpecies, "gnome"},
+		{content.KindCharacterClass, "evoker"}, {content.KindCharacterClass, "hunter"},
 		{content.KindSpecies, "fireball"}, {content.KindSpell, "wizard"},
 	} {
 		key := content.NewKey(c.kind, content.MustID(c.id))
@@ -195,7 +198,7 @@ func TestNoBannedTerms(t *testing.T) {
 	for _, id := range sliceIDs()[content.KindSpecies] {
 		texts = append(texts, speciesTexts(speciesOf(t, src, id))...)
 	}
-	for _, id := range sliceIDs()[content.KindSpell] {
+	for _, id := range bundledSpellIDs() {
 		texts = append(texts, spellTexts(t, spellOf(t, src, id))...)
 	}
 	texts = append(texts, wizardTexts(wizardOf(t, src))...)
@@ -216,7 +219,7 @@ func TestSliceIsClosedUnderItsReferences(t *testing.T) {
 	t.Parallel()
 	src := newSlice(t)
 	spells := map[content.Key]bool{}
-	for _, id := range sliceIDs()[content.KindSpell] {
+	for _, id := range bundledSpellIDs() {
 		spells[content.NewKey(content.KindSpell, content.MustID(id))] = true
 	}
 	var found []string
@@ -234,7 +237,9 @@ func TestSliceIsClosedUnderItsReferences(t *testing.T) {
 				if r.Target().Kind() != content.KindSpell || !spells[r.Target()] {
 					t.Errorf("%v reference %s targets %v, which the slice does not hold", e.Key(), r.Field(), r.Target())
 				}
-				found = append(found, r.Target().ID().String())
+				if k == content.KindSpecies { // the class files add their own always-prepared sites
+					found = append(found, r.Target().ID().String())
+				}
 			}
 		}
 	}
@@ -271,7 +276,7 @@ func TestDanglingLineageSpellIsRejected(t *testing.T) {
 }
 
 // Requirement: doc/specs/content-thin-slice.md FR-078 and doc/specs/content-schema-and-decoder.md FR-079 to FR-082 -
-// LoadSet once per embedded document with a recording telemetry and a fixed clock adds 4, 1 and 12 to entries_loaded
+// LoadSet once per embedded document with a recording telemetry and a fixed clock adds 4, 5 and 73 to entries_loaded
 // by kind, nothing to decode_errors and three loads with outcome success.
 // Path: happy.
 func TestLoadSetCountsOverTheSlice(t *testing.T) {
@@ -297,15 +302,15 @@ func TestLoadSetCountsOverTheSlice(t *testing.T) {
 			}
 		}
 	}
-	if want := map[string]float64{content.ValueKindSpecies: 4, content.ValueKindCharacterClass: 1, content.ValueKindSpell: 12}; !maps.Equal(perKind, want) {
+	if want := map[string]float64{content.ValueKindSpecies: 4, content.ValueKindCharacterClass: 12, content.ValueKindSpell: 73}; !maps.Equal(perKind, want) {
 		t.Errorf("entries_loaded by kind = %v, want %v", perKind, want)
 	}
 	if got := rec.Meter.MeasurementsNamed(content.MetricDecodeErrors); len(got) != 0 {
 		t.Errorf("decode_errors = %v, want none", got)
 	}
 	loads := rec.Meter.MeasurementsNamed(content.MetricLoads)
-	if len(loads) != 3 {
-		t.Fatalf("loads = %d measurements, want 3", len(loads))
+	if len(loads) != 14 {
+		t.Fatalf("loads = %d measurements, want 14", len(loads))
 	}
 	for _, m := range loads {
 		if m.Value != 1 || len(m.Attrs) != 1 || m.Attrs[0].Key() != telemetry.AttrOutcome || m.Attrs[0].Value() != telemetry.OutcomeSuccess {
@@ -383,5 +388,28 @@ func TestDirectoryAndEmbeddedFilesAgree(t *testing.T) {
 		if p := imp.Path.Value; p == `"encoding/json"` || p == `"os"` {
 			t.Errorf("bundled_source.go imports %s: a second JSON path", p)
 		}
+	}
+}
+
+// Requirement: doc/specs/content-classes.md FR-003, FR-069 (staging replaced when the twelfth class landed) - the bundle holds
+// exactly the twelve classes of table SRC (TestMembership) and, counted apart from the per-class rows, 174 class feature entries
+// and 58 subclass feature entries (the column totals of table F), so a lost or duplicated entry shows as a total too.
+// Path: unhappy (boundary: none missing, none extra).
+func TestClassFeatureTotals(t *testing.T) {
+	t.Parallel()
+	list, err := newSlice(t).ListKind(context.Background(), content.KindCharacterClass)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var class, sub int
+	for _, e := range list {
+		c := e.(content.ClassDefinition)
+		class += len(c.Features())
+		for _, s := range c.Subclasses() {
+			sub += len(s.Features())
+		}
+	}
+	if len(list) != 12 || class != 174 || sub != 58 {
+		t.Errorf("%d classes with %d class and %d subclass features, want 12, 174 and 58", len(list), class, sub)
 	}
 }

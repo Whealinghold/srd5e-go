@@ -16,7 +16,7 @@ import (
 // apart from the data files under testdata/srd (content-thin-slice.md section 1,
 // "Oracle"; content-licensing-and-notice.md FR-033).
 //
-//go:embed testdata/srd/thin_slice/*.json
+//go:embed testdata/srd/thin_slice/*.json testdata/srd/spells_levels_0_1/*.json testdata/srd/spells_levels_2_3/*.json testdata/srd/spells_levels_4_9/*.json
 var oracleFS embed.FS
 
 // readOracle decodes testdata/srd/thin_slice/<name>.json into a T.
@@ -211,6 +211,10 @@ func blockTexts(t *testing.T, blocks []content.TextBlock) []string {
 			out = append(out, v.Text())
 		case content.TextEntry:
 			out = append(out, v.Name(), v.Text())
+		case content.TextEmbeddedStatBlock:
+			out = append(out, v.Lines()...)
+		case content.TextBulletList:
+			out = append(out, v.Items()...)
 		default:
 			t.Fatalf("unexpected block %T in a slice spell", b)
 		}
@@ -261,11 +265,28 @@ func wizardTexts(c content.ClassDefinition) []string {
 	return out
 }
 
-// sliceIDs are the 17 entry ids of the slice by kind (thin-slice FR-001 to FR-003).
+// bundledSpellIDs are the 73 spell ids of the bundle: the 12 slice spells and the 61 level 0 to 9 spells that the
+// class files name (plan-phase-3.md 5.10), in the order ListKind returns them.
+func bundledSpellIDs() []string {
+	return []string{
+		"acid_splash", "aid", "alter_self", "arcane_eye", "aura_of_life", "beacon_of_hope", "bless", "blight", "blur",
+		"burning_hands", "charm_monster", "chromatic_orb", "command", "commune", "cone_of_cold", "contact_other_plane",
+		"cure_wounds", "dancing_lights", "darkness", "death_ward", "detect_magic", "dispel_magic", "divine_smite", "dragons_breath",
+		"druidcraft", "faerie_fire", "fear", "find_steed", "fire_bolt", "fire_shield", "fireball", "flame_strike", "fly",
+		"fog_cloud", "freedom_of_movement", "geas", "greater_restoration", "guardian_of_faith", "hold_person", "hunters_mark",
+		"ice_storm", "insect_plague", "legend_lore", "lesser_restoration", "lightning_bolt", "longstrider", "magic_missile",
+		"mass_cure_wounds", "mass_healing_word", "misty_step", "pass_without_trace", "polymorph", "power_word_heal",
+		"power_word_kill", "prestidigitation", "protection_from_evil_and_good", "ray_of_frost", "ray_of_sickness", "revivify",
+		"scorching_ray", "shield_of_faith", "shocking_grasp", "sleep", "sleet_storm", "speak_with_animals", "stinking_cloud",
+		"suggestion", "summon_dragon", "tree_stride", "wall_of_fire", "wall_of_stone", "web", "zone_of_truth",
+	}
+}
+
+// sliceIDs are the 23 entry ids of the bundle by kind (thin-slice FR-001 to FR-003, plus the Fighter, Barbarian, Monk, Rogue and Cleric classes).
 func sliceIDs() map[content.Kind][]string {
 	return map[content.Kind][]string{
 		content.KindSpecies:        {"dragonborn", "dwarf", "elf", "human"},
-		content.KindCharacterClass: {"wizard"},
+		content.KindCharacterClass: {"barbarian", "bard", "cleric", "druid", "fighter", "monk", "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard"},
 		content.KindSpell: {"dancing_lights", "darkness", "detect_magic", "druidcraft", "faerie_fire", "fire_bolt", "fireball",
 			"longstrider", "magic_missile", "misty_step", "pass_without_trace", "prestidigitation"},
 	}

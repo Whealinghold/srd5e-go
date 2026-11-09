@@ -2,12 +2,22 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `modifiers-and-advantage.md`, `content-schema-and-decoder.md`, `derived-stats.md`, `character-aggregate.md` |
 
 Pure domain, upstream of the `toolbox` context (`shared-types-and-ownership.md` FR-045). Two slices, both in `character`: travel (4.1 to 4.4) and light sources and fuel (4.5). `LightLevel` is a `content` type owned by `content-schema-and-decoder.md` FR-133 (`shared-types-and-ownership.md` FR-053), so the light slice needs no `combat` type. See [../roadmap.md](../roadmap.md); `shared-types-and-ownership.md` FR-014.
+
+**Implementation status.** Implemented in package `character` (tests named after the source files; every id of section 4 is a T id with a test, none needs Phase 5 data). Files: `travel_pace.go` (with `TravelPaceRow`), `vehicle_speed.go`, `travel_mode.go`, `travel_rules.go`, `mounted_pace_boost.go`, `light_emission.go`, `light_source_rules.go` (with `SrdLightSources`), `fuel_supply.go` and `exploration_error.go`. No use case and no signal. Spec wording settled in the code:
+
+- **Go names.** Enum members are prefixed: `PaceSlow`, `PaceNormal`, `PaceFast`; `LightShapeRadius`, `LightShapeCone`; `HoodRaised`, `HoodLowered`; `FuelCandle`, `FuelTorch`, `FuelOilFlask`; `MountedBoostAvailable`, `MountedBoostSpent`, `MountedBoostMountsNeedRest`. `CharacterID` is the package's `Identifier`. `TravelPaceRow.Of(pace)` is `TravelPace.Row()` (accessors `FeetPerMinute`, `MilesPerHour`, `MilesPerDay`); `VehicleSpeed.FromMilesPerHour` is `VehicleSpeedFromMilesPerHour`; `HoodedLantern(hood)` plus `Candle`, `Lamp`, `BullseyeLantern`, `Torch` and `All` are the `SrdLightSources` accessors.
+- **One error type.** Every rejected input is a `*ExplorationError` whose `Input` names it (speed, radius, no light, shape, distance, fuel kind, remaining, burn duration, zero `Identifier`); it matches `srderr.ErrInvalidInput`. `NewMountedPaceBoost`, `NewFreshFuelSupply` and `RestoreFuelSupply` also reject the zero `Identifier` and an invalid kind. `MustVehicleSpeed` and `MustLightEmission` panic with it.
+- **Results hold one event.** The results are comparable: `MountedBoostSpendAccepted.Event()`, `MountedBoostRestRestored.Event()`; `FuelBurnExhausted.Event()` returns the event and whether one was raised (none on an already spent supply). `FuelSupply.Burn` returns `(FuelBurnResult, error)`.
+- **Invalid values are inert.** An invalid pace, skill, hood or zero emission gives no circumstance, 0 miles, the zero emission or Darkness; `Strongest` ignores invalid levels.
+- **Architecture check.** `internal/archtest` pins FR-043, FR-044, FR-045, FR-051, FR-053 and FR-054 (`exploration_test.go`).
+
+Not yet implemented: none.
 
 **Consumed by (non-normative).** `toolbox-travel-pace.md` imports `TravelPace`, `TravelPaceRow`, `TravelMode`, `VehicleSpeed` and `TravelRules` (Q-06). Its own pace, pace-row, pace-effect and vehicle-speed requirements are withdrawn there (`shared-types-and-ownership.md` FR-048): `toolbox` is downstream of `character`, so a type both need lives here (`shared-types-and-ownership.md` FR-013, FR-045).
 

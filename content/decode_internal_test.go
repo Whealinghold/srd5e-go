@@ -329,6 +329,10 @@ func TestDecodeStringHygiene(t *testing.T) {
 		{"lone low surrogate", p14, "unhappy (invalid input)", named(`\udc00`), []string{bad}},
 		{"high surrogate then a plain escape", p14, "unhappy (invalid input)", named(`\ud800\u0041`), []string{bad}},
 		{"two high surrogates", p14, "unhappy (invalid input)", named(`\ud800\ud800`), []string{bad}},
+		// The next two rows keep a tail that reads as a low surrogate (DE00) after a 6-byte window, so a mutated
+		// backslash test or 'u' test (each named in its row) would pair them and accept the string.
+		{"high surrogate then a plain character before uDE00 (pins the backslash test)", p14, "unhappy (invalid input)", named(`\ud83dAuDE00`), []string{bad}},
+		{"high surrogate then a non-u escape before DE00 (pins the 'u' test)", p14, "unhappy (invalid input)", named(`\ud83d\nDE000`), []string{bad}},
 		{"invalid UTF-8 byte", p14, "unhappy (invalid input)", named("a\xffb"), []string{bad}},
 		{"truncated UTF-8 sequence", p14, "unhappy (invalid input)", named("a\xe2\x82"), []string{bad}},
 		{"invalid UTF-8 next to an escape", p14, "unhappy (invalid input)", named("\\n\xff"), []string{bad}},
@@ -760,6 +764,11 @@ func TestProblemErrorIsEscapedAndBounded(t *testing.T) {
 	exact := NewProblem(strings.Repeat("x", MaxRenderedPath), ProblemWrongType)
 	if strings.HasSuffix(exact.Error(), "...") {
 		t.Errorf("a path of exactly MaxRenderedPath bytes was marked cut")
+	}
+	// A path of continuation bytes has no rune start to move back to: the cut must stop at 0 and not index before the path.
+	noStart := NewProblem(strings.Repeat("\x80", MaxRenderedPath+10), ProblemWrongType)
+	if got, want := noStart.Error(), `content: wrongType at ""...`; got != want {
+		t.Errorf("a path with no rune start renders %q, want an empty path marked with ...", got)
 	}
 }
 

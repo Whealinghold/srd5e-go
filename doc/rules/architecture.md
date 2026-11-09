@@ -62,10 +62,11 @@ logic, no aliases).
 | `content/data` | Embedded SRD JSON and its `go:embed` file (created with the first content) | adapter |
 | `content/contenttest` | Test doubles for the content ports (`FakeSource`, `FakeDecoder`) and their contract suite | test support |
 | `d20` | First bounded context: domain and use case in one package, unexported helpers, one file per concept | context |
+| `character` | Character context: abilities, Proficiency Bonus, level, derived stats, spellcasting, equipment rule maths (grows per Phase 3 step) | context |
 | `internal/archtest` | Architecture tests (§9) | tooling |
 | `scenarios` | Cross-package tests through the public API only (`package scenarios_test`) | tests |
 
-Future contexts (`content`, `character`, `combat`, `toolbox`) each become one
+Future contexts (`combat`, `toolbox`) each become one
 top-level package and are not created before their specs are implemented.
 Bundled content data lives in `content/data/` as JSON files embedded directly
 with `go:embed` (no generator step).
@@ -102,6 +103,7 @@ imports something not listed.
 | `content/data` | `content`, kernel packages | every context; imported only by tests and consumers |
 | `content/contenttest` | `content`, `srderr` | other contexts, other `*test` packages, kernel packages other than `srderr` |
 | `d20` | `dice`, `ability`, `modifier`, `srderr`, `telemetry` | `*test` packages (production files), `internal/` |
+| `character` | `content`, `d20`, `dice`, `ability`, `modifier`, `srderr`, `telemetry` | `combat`, `toolbox`, `*test` packages (production files), `internal/` |
 | `scenarios` (tests only) | every public package, including `*test` | `internal/` |
 | `internal/archtest` | nothing in the module | everything (it scans files, it does not import them) |
 
@@ -175,7 +177,7 @@ packages are always allowed and are not repeated.
 | `combat` | Initiative, actions, attacks, conditions, hit points, damage | `character`, `d20`, `content` |
 | `toolbox` | Gameplay Toolbox rules (travel pace, environmental effects, poison, traps, curses and contagions, fear and mental stress, XP-budget encounter planning) | `content`, `d20`, `character`, `combat` |
 
-Nothing imports `toolbox`. Only `d20` exists today; the others are reserved
+Nothing imports `toolbox`. Only `d20`, `content` and `character` exist today; the others are reserved
 names. `internal/archtest` encodes this table and the §1 table together.
 
 The contexts are **provisional**. Adding, merging or re-pointing a context is an
@@ -593,7 +595,7 @@ contract suite. After that these rules apply in full.
 
 ## Read receipt
 
-RULE-TAG: `architecture-d95a5a39ea8f`
+RULE-TAG: `architecture-c5791ae74e42`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

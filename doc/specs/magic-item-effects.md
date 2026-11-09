@@ -2,10 +2,14 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `character` |
 | Roadmap phase | 3 |
 | Depends on | `magic-item-rules.md`, `content-magic-items.md`, `content-schema-and-decoder.md`, `derived-stats.md`, `spellcasting.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `dice-and-rolls.md`, `character-aggregate.md`, `errors-and-results.md`, `observability-ports.md` |
+
+**Implementation status.** Implemented in package `character` (one file per concept, tests named after the source files): `enhancement_bonus.go` (FR-001, FR-002, FR-006), `magic_item_effect.go` (`MagicItemEffect` and its variants, `ItemEffectCondition`, `ItemEffectContext`, `ActiveEffectsOf`, FR-003 to FR-005, FR-007, FR-009 to FR-012), `magic_item_effect_table.go` (FR-008, FR-013), `effective_ability_scores.go` (FR-014 to FR-021), `potion_of_healing.go` (grades, `ResistanceTypeTable`, `GrantedResistances`, FR-022, FR-023, FR-026, FR-027), `potion_of_healing_usecase.go` (`RollPotionOfHealing`, `RollSpellStoringRingLevels`, FR-024, FR-025, FR-049, FR-067), `charged_spell.go` (FR-028 to FR-036), `last_charge.go` and `last_charge_usecase.go` (FR-037 to FR-044, `ResolveLastCharge`), `staff_absorption.go` (FR-045 to FR-047), `spell_storage.go` (FR-048 to FR-056), `extradimensional_space.go` (FR-057 to FR-065), `charged_item_event.go` (FR-068); signals in `magic_item_signals.go`, catalogued in `doc/observability/signals.md`; scenario `scenarios/magic_item_effects_test.go`; architecture test `internal/archtest/magic_item_effects_test.go` (FR-066, FR-069, FR-070). Go shapes that differ from the prose of section 3 and 6: the use cases follow the package convention (`NewX(roller, opts...)` and `Do(ctx, command)`, with a `RollPotionOfHealingCommand`, `ResolveLastChargeCommand` and `RollSpellStoringRingLevelsCommand`); `ActiveItemEffects.Of` is the function `ActiveEffectsOf(items)` over `EquippedItem`s that each carry their own `ItemEffectContext` (access, usage, armor, Shield), and `EffectiveAbilityScores.Of` is `EffectiveScoresOf`; the grade lookup is `PotionOfHealingGrades.ForRarity`; `Store`, `Cast` and `Absorb` also take the holder `Identifier` and the `MagicItemInstanceID` the events need; a `SpaceCheck` and `AirSupplies` name the pouch; `ContainerFates` carries FR-059's destruction. The table ids are the snake_case item names (`ring_of_protection`, `armor_plus`, `shield_plus`, `weapon_plus`, `ammunition_plus`, `wand_of_the_war_mage_plus`, ...) until the Phase 5 magic item data fixes the ids.
+
+Not yet implemented: the resistance items (Potion of Resistance, Ring of Resistance, Armor of Resistance) are not rows of `MagicItemEffectTable`, because `GrantedResistance` is not a `MagicItemEffect` variant (FR-013 names FR-026 among the ids; the host builds the grant with `GrantedResistances.Chosen`); the table ids await Phase 5 data.
 
 ## 1. Purpose and scope
 

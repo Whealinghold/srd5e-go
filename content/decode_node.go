@@ -172,7 +172,9 @@ func unquote(raw []byte) (string, bool) {
 			out = utf8.AppendRune(out, r)
 			continue
 		}
-		// equivalent mutants: a pair test on a low surrogate or on a non-escape still fails in DecodeRune below.
+		// Precondition: body is a JSON string json.Valid already accepted, so a backslash is followed by a valid escape letter.
+		// Equivalent mutants: a pair test on a low surrogate (DecodeRune still rejects it) and body[i+1] >= 'u' ('u' is the highest escape letter).
+		// Not equivalent: the backslash test and body[i+1] == 'u'; TestDecodeStringHygiene pins them.
 		if r < 0xDC00 && i+6 <= len(body) && body[i] == '\\' && body[i+1] == 'u' {
 			if pair := utf16.DecodeRune(r, hex4(body[i+2:i+6])); pair != unicode.ReplacementChar { // equivalent mutant: DecodeRune returns U+FFFD or a rune above it, so != and > agree
 				out = utf8.AppendRune(out, pair)
