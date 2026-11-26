@@ -326,7 +326,7 @@ const (
 
 // Attribute keys of the casting use cases.
 const (
-	// AttrCastSource is the CastSource.String of a cast: a ValueCastSource* value.
+	// AttrCastSource is the CastSource.String of a cast.
 	AttrCastSource = "srd5e.character.cast_source"
 	// AttrConcentrationReason is the ConcentrationBreakReason.String of a BreakConcentration call.
 	AttrConcentrationReason = "srd5e.character.concentration_reason"

@@ -150,6 +150,9 @@ func validateStatsAndTerms(class SpellcastingClass, source CastSource, spell con
 		if classless {
 			return invalidInput("cast: a casting class is required")
 		}
+	case CastSourceMonster:
+		// castSourceFor never gives this source: a monster cast is reported through NewCastReport, not made by CastSpell.
+		return invalidInput("cast: a monster source is not cast through CastSpell")
 	}
 	if terms != nil {
 		return invalidInput("cast: terms are for a scroll or duplicated cast only")
@@ -374,7 +377,7 @@ func castLevels(state SpellcastingState, source CastSource, spell content.Spell,
 			return 0, terms.cantripLevel
 		}
 		return own, own
-	case CastSourceRitual:
+	case CastSourceRitual, CastSourceMonster: // no levels from CastSpell for either
 		return 0, 0
 	}
 	return 0, 0

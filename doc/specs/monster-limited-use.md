@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `errors-and-results.md`, `dice-and-rolls.md`, `observability-ports.md`, `content-monsters.md`, `rests-and-hit-dice.md`, `combat-foundations.md`, `conditions.md`, `initiative-and-actions.md` |
@@ -280,7 +280,7 @@ Window W1 is `(endedTurnOf: B, round: 1)`, W2 is `(endedTurnOf: C, round: 1)`; t
   `RechargeEntry(part, low, high, readiness)`, `RestRechargeEntry(part,
   readiness)`), `LimitedUsePartRef` (the position of any stat-block part;
   `monster-stat-block-actions.md` reuses it, no second ref type),
-  `MonsterPartSection`, `LairStatus`, `RechargeReadiness`, `SpellUseEntry(ref, maximum, remaining)` (the sixth `LimitedUseEntry` variant), `SpellUseRef`, `LimitedUseSubject`, `LegendaryTrack`, `LegendaryWindowRecord`,
+  `MonsterPartSection`, `LairStatus`, `RechargeReadiness`, `SpellUseEntry(ref, maximum, remaining)` (the fourth and last `LimitedUseEntry` variant), `SpellUseRef`, `LimitedUseSubject`, `LegendaryTrack`, `LegendaryWindowRecord`,
   `LegendaryActionWindow`, `LimitedUseAvailability` (`available`, `exhausted`,
   `notLimited`), `LimitedUseTransition` (`state`, `events`).
 - **Results (closed, operation-prefixed):** `LimitedUseSpendOutcome`
@@ -332,8 +332,8 @@ type LegendaryActionOutcome interface{ /* LegendaryActionAllowed | LegendaryActi
 
 // Package combat, file apply_monster_turn_start.go.
 type ApplyMonsterTurnStart struct{ /* unexported */ }
-func NewApplyMonsterTurnStart(r dice.Roller, opts ...Option) ApplyMonsterTurnStart // Option: WithTelemetry (zero value = Noop)
-func (u ApplyMonsterTurnStart) Do(ctx context.Context, c ApplyMonsterTurnStartCommand) (ApplyMonsterTurnStartResult, error) // FR-035..FR-039
+func NewApplyMonsterTurnStart(r Roller, opts ...Option) (ApplyMonsterTurnStart, error) // Option: WithTelemetry, WithClock (zero value = Noop); a nil roller is ErrInvalidInput
+func (u ApplyMonsterTurnStart) Run(ctx context.Context, c ApplyMonsterTurnStartCommand) (ApplyMonsterTurnStartResult, error) // FR-035..FR-039 (named Run like every combat use case)
 
 type ApplyMonsterTurnStartCommand struct{ State LimitedUseState }
 type ApplyMonsterTurnStartResult interface{ /* MonsterTurnStartApplied */ } // closed variant set
@@ -411,7 +411,22 @@ parts, no ports or doubles. Each row of a case table is one table-driven test.
   at both ends, `max(0, ...)` in FR-028, the refusal order of FR-021, and
   `maximum` versus `maximumInLair` in FR-002. `ApplyMonsterTurnStart` SHOULD be
   mutation tested.
-- **Not covered:** nothing.
+- **Not covered:** nothing by design; see the implementation status below for what is held back.
+
+**Implementation status.** Partially implemented in package `combat`. Every requirement id FR-001 to FR-050 is T and has a test; the stat blocks the case tables quote (Aboleth, Air Elemental, Ankheg, Cloaker, Solar, Priest, Night Hag, Archmage) are not bundled, so the tests use synthetic monsters that carry the same printed numbers. Phase 3 `rests-and-hit-dice` is merged: `AfterRest` takes a `character.RestKind` and uses its `Recharges` mapping (`RechargeShortOrLongRest` for Recharge parts, `RechargeLongRest` for X/Day parts and spells). Files: `limited_use_part.go` (`LairStatus`, `MonsterPartSection`, `LimitedUsePartRef`, `SpellUseRef`, `RechargeReadiness`, `RechargeRollResult`, `LimitedUseAvailability`, `LimitedUseRefusal`, `LimitedUseSubject`), `limited_use_entry.go` (the four entries and the P13 re-validation of content numbers), `limited_use_legendary.go` (`LegendaryTrack`, `LegendaryActionWindow`, `LegendaryWindowRecord`, the refusals, the outcomes and `LimitedUseTransition`), `limited_use_event.go` (the six events), `limited_use_state.go` (`LimitedUseState` and every rule), all silent, and the use case `apply_monster_turn_start.go`. Tests are named after the sources; `limited_use_entry_internal_test.go` forges the zero content values (a use count of 0, a Recharge range of 0 to 0, a nil usage, a zero spell frequency) that content's constructors cannot produce, to test the P13 checks; `internal/archtest/combat_limited_use_test.go` enforces FR-033, FR-035, FR-040 and FR-041 and the signal names; `FuzzLimitedUseConstructors` fuzzes the refs, the window and the roll map; `ExampleApplyMonsterTurnStart` is the example. The plan P10 caps are built (see Limits below) and tested in `limited_use_limit_test.go`. Decisions made while implementing:
+
+- **Go names.** The enum members are `InLair`/`OutsideLair`, `MonsterPartTraits` to `MonsterPartLegendaryActions`, `RechargeReady`/`RechargeSpent`, `RechargeRegained`/`RechargeNotRegained`, `UseAvailable`/`UseExhausted`/`UseNotLimited`, `LimitedUseRefusedExhausted`/`LimitedUseRefusedNotLimited` and `LegendaryRefusedNoActions`, `LegendaryRefusedOwnTurn`, `LegendaryRefusedIncapacitated`, `LegendaryRefusedWindowUsed`, `LegendaryRefusedNoUses` (the section names are prefixed so `LegendaryActions` stays the name of the content type). The four entries are `PerDayEntry`, `RechargeEntry`, `RestRechargeEntry` and `SpellUseEntry`. `LegendaryTracked` holds the current maximum and the two printed figures so `ChangeLair` can recompute it. The use case method is `Run` and `NewApplyMonsterTurnStart` returns `(ApplyMonsterTurnStart, error)` for a nil roller, like every combat use case.
+- **No `CombatantID` accessor.** `TestCombatDoesNotGenerateIDs` (FR-009 of the foundations) bans a function that returns a `CombatantID`, so `LimitedUseState` and `LegendaryActionWindow` expose `Combatants() []CombatantID` instead.
+- **Extra validation.** `NewLegendaryActionWindow` also rejects a zero creature; `TakeLegendaryAction` returns `srderr.ErrInvalidInput` for the zero window and an availability other than the two defined values (FR-034 lists only the round). `AfterRest` with an invalid `RestKind` and `ChangeLair` with an undefined status change nothing, as `RestKind.Recharges` recharges nothing for an invalid kind. A state started from a zero `Monster`, a zero combatant or an undefined lair is `ErrInvalidInput`. A zero `LimitedUseState` is invalid: its operations refuse or change nothing.
+- **P13.** `StartLimitedUse` checks again every content number it relies on (an X/Day count and in-lair count from `content.MonsterMinUses` to `content.MonsterMaxNumber`, a Recharge range inside 1 to 6 and not reversed, a Legendary Action count, a spell frequency count); a bad value is an `ErrInvalidInput` error, the form an `invalid` result takes for a constructor. The use case has no `invalid` result because its command holds a state, not content.
+- **No content source.** `StartLimitedUse` takes a `content.Monster` the host fetched, so this spec reads no `content.Source` and has no unknown-id, duplicate-entry, decode or failing-source rows; those belong to `monster-combatant-setup.md` (step 7f). The missing-content row here is the zero `Monster`.
+- **Window record.** `StartOfOwnTurn` does not reset the recorded window (FR-018 records the last used window only; a new round gives a different window).
+- **Telemetry.** `srd5e.combat.recharge_outcome` is an attribute of the counter only; `observability.md` section 5 lists the operation, the three `result` values and the outcome values.
+
+**Limits (plan P10; design numbers, not SRD rules).** `StartLimitedUse` takes a stat block of at most 64 parts (Traits, Actions, Bonus Actions, Reactions and Legendary Actions together), at most 64 spells (over all the groups of its first Spellcasting) and at most 64 spell groups; over one it returns a `LimitExceededError` (matching `srderr.ErrInvalidInput`, `String()` the shared value `limit_exceeded`) before it reads an entry. A state therefore holds at most 128 entries and `RechargeRollsNeeded` returns at most 64 parts (the Recharge parts). `StartOfOwnTurn` takes a roll map of at most 64 entries; a map of 65 is a `LimitExceededError`, checked before the keys are compared with the parts that need a roll. Neither the state nor the map is changed by a rejection. `limited_use_limit_test.go` tests each cap at the cap and at cap plus one, and a state of 64 spent Recharge parts at the roll cap.
+
+Not yet implemented: D-1, the contract tests of the printed numbers against the bundled stat blocks the case tables name (the bundled set holds no monster until Phase 5). The cap tests of plan P10 are written (Limits above). Mutation testing: mutation skipped at user request; no mutation score.
+
 
 ## 9. Open questions and decisions
 

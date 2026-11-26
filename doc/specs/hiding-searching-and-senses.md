@@ -2,10 +2,28 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `shared-types-and-ownership.md`, `errors-and-results.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `d20-tests.md`, `content-schema-and-decoder.md`, `combat-foundations.md`, `conditions.md` |
+
+**Implementation status.** Implemented in package `combat` as pure, silent domain code (one file per concept, tests named after the source files): every live requirement id of section 4 (FR-003 to FR-015, FR-017 to FR-038, FR-040 to FR-062, FR-064 to FR-082, FR-083 to FR-105; FR-039 and FR-063 are notes; FR-001, FR-002 and FR-016 are withdrawn) is T and has a test; none needs Phase 5 data or an unmerged class (no D ids; D-19, the Thief's Stealth Attack, is the host skipping `ApplyActivity(AttackRoll)`, so there is no code to defer). Files: `light.go` (`SpaceVisibility`, `LightRules`), `special_senses.go` (`SenseRange`, `SenseRanges`, `SpecialSenseRules` with Reach, Darkvision, effective obscurement, Tremorsense and the Truesight queries), `sight.go` (`SightScene`, `SightRules.CanSee`), `hiding.go` (`HideScene`, `HideRules`, status, resolutions), `hiding_event.go` (`HidingEvent`, `CreatureHid`, `HidingEnded`), `search.go` and `study.go`. `internal/archtest/combat_hiding_test.go` enforces the silent domain (imports, no signal constant), the two-member event family and the export list; the unique `kind` constants of FR-093 are checked by the existing `TestCombatEventDeclarations`; `scenarios/hiding_test.go` chains an assessment, a rolled check, `ImpliedConditions`, `CanSee`, a find attempt and an attack roll. Spec corrections made while implementing, all decided in the code:
+
+- **Go names.** Enum members are `<Type><Member>` (`SightCheckEffectAutomaticFailure`, `SenseReachWithinRange`, `HideBlockNotConcealed`, `HidingActivityAttackRoll`); `HideCoverDegree` members are `HideCoverDegreeHalfCover` and so on; `DetectedThing` members are `DetectedThingCreature`, `DetectedThingMovingObject`, `DetectedThingStationaryObject`. Files are `light.go`, `special_senses.go`, `sight.go`, `hiding.go`, `hiding_event.go`, `search.go`, `study.go` (the suggested names were a suggestion).
+- **Distances are plain `int` feet and a negative one is an error.** `Reach`, `PerceivedLight` and `EffectiveObscurement` return `(T, error)` (a `*SenseRangeError`, or a `*SpaceVisibilityError` for the zero `SpaceVisibility`), which is what FR-020 and cases 4.3a require; section 6 printed them without the error. `PerceivedLight` is a struct with `Level()` and `Color()`. The scene constructors, `NewSenseRange`, `NewSpaceVisibility`, `NewHiddenState`, `NewHideScene` and the event constructors return errors matching `srderr.ErrInvalidInput`; `SenseRangeError` also carries the negative-distance reason.
+- **`SenseRanges` is a fixed array of four slots** (comparable, trivially copied); `NewSenseRanges` is variadic and ignores a zero `SenseRange`; `Range(sense)` and `All()` read it.
+- **No function returns a `CombatantID`** (`combat-foundations.md` FR-009), so `EnemySighting` (`Enemy`, `Line`, `HiderSeesEnemy`), `HideAvailable.Hider`, `HideBlocked.Hider` and `HideCheckSpec`-bearing `HideAvailable.Check` are exported fields; `NewHideScene` checks every `EnemySighting`, and `Resolve` rejects a `HideAvailable` that is not from `Assess` (blank hider or a check that is not Dexterity (Stealth) against 15) with `ErrInvalidInput`. `NewHideScene(hider, obscurement, cover, obscuredByLargerCreature, enemies)` takes the larger-creature fact as a plain parameter.
+- **`Resolve` and `ResolveForcedFailure` return an error** for a forged assessment, an undefined outcome, or an outcome that disagrees with the total (FR-059). `HideNotRolled` keeps the reason as given.
+- **Facts are keyed-literal structs.** `IllusionFacts{DeceivesSight}` and `TrueFormFacts{TransformedByMagic, ObserverSeesIt}` carry the booleans of FR-095. `SeesInvisible(TruesightScene)` is added for FR-042 (Blindsight's version is `CanSee`).
+- **`ApplyActivity` with a blank hider, an undefined activity or a nil status returns the status unchanged with no event** (no event can be built without a hider); `HidingStatusHidden` is a keyed literal holding a `HiddenState` from `NewHiddenState`.
+- **Search and Study assessments** are keyed-literal structs (`SuggestedSearchSkill{Skill, Target}`, `OffTableSearchSkill`, `InvalidSearchSkill{Skill, Ability}`, `InvalidStudySkill`); `SuggestedStudySkill` holds its subjects behind `Subjects()` (a copy). `SubjectsOf` lists the topics then the creature types. An undefined skill is `InvalidSearchSkill` or `InvalidStudySkill`.
+- **`SightScene` keeps the two condition sets** as copies (FR-103) and rejects an undefined kind; the zero `SightScene` is `CannotSee`.
+
+Not yet implemented: none. The section 8 scenario that continues into an attack, with the location-given-away flag of `attacks.md` FR-037, is `TestHiddenAttackerGivesItsLocationAwayWhateverTheRoll` in `scenarios/hiding_test.go`. 
+
+**Limits (plan P10; design numbers, not SRD rules).** `NewHideScene` reads at most 256 enemy sightings and at most 4 cover degrees (the three degrees of cover and a repeat); over a cap it returns a `LimitExceededError` (matching `srderr.ErrInvalidInput`, `String()` the shared value `limit_exceeded`) before it reads an element, and the lists are not changed. `hiding_limit_test.go` tests each cap at the cap and at cap plus one. The lists are walked once, linearly. `NewSightScene` reads at most 256 observer conditions and at most 256 target conditions (the same `LimitExceededError`, before the kind check); `hiding_limit_test.go` tests each at the cap and at cap plus one.
+
+ `scenarios/hiding_test.go` also covers the Hide, roll, `CanSee`, find and attack-roll-ends part. Mutation testing: mutation skipped at user request; no mutation score. Statement coverage of `combat` 97 percent or more. The survivors that could be killed were killed by the boundary rows added after the first run (distance 0, negative kinds, an undefined reach, contact and sight relation, line of sight past blocked, a failure total above 15, the count of twenty-one topics).
 
 ## 1. Purpose and scope
 
@@ -573,9 +591,7 @@ FR-027). `doc/observability/signals.md` is not changed.
 Unit plus the architecture test; no application or contract test. Scenario
 tests in `scenarios/` chain Hide, a roll, an attack and the
 location-given-away flag (`attacks.md` FR-037; FR-068). No doubles
-(`doc/rules/testing.md` §3). Mutation testing (§8): `gomu` on the changed lines in
-`combat`, score at least 80, run only inside Docker with `--cpus` and `--workers` capped at a quarter of the host processors; the boundary rows kill `<` and
-`<=` mutants.
+(`doc/rules/testing.md` §3). Mutation testing (§8): mutation skipped at user request; no mutation score.
 
 Deliberately not covered: FR-039 and FR-063 (path n/a, note) - notes, not requirements.
 

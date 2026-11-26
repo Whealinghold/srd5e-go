@@ -271,12 +271,14 @@ type CastReport struct {
 
 // NewCastReport returns the report for parts. It returns an error matching
 // srderr.ErrInvalidInput for an invalid spell id or source, a class that is set
-// but invalid, a slot set without a valid pool and level, or a level outside 0
+// but invalid, a slot set without a valid pool and level, a CastSourceMonster
+// report with a class or a slot, or a level outside 0
 // to 20. It never panics.
 func NewCastReport(p CastReportParts) (CastReport, error) {
-	if !p.Spell.Valid() || p.Source < CastSourceSlot || p.Source > CastSourceDuplicated || (p.Class != 0 && !p.Class.Valid()) ||
+	if !p.Spell.Valid() || !p.Source.Valid() || (p.Class != 0 && !p.Class.Valid()) ||
 		p.CastAtLevel < 0 || p.CastAtLevel > MaxLevel || p.ScalingLevel < 0 || p.ScalingLevel > MaxLevel ||
-		(p.HasSlotSpent && (!p.SlotPool.Valid() || p.SlotLevel.IsZero())) {
+		(p.HasSlotSpent && (!p.SlotPool.Valid() || p.SlotLevel.IsZero())) ||
+		(p.Source == CastSourceMonster && (p.Class != 0 || p.HasSlotSpent || p.CountsAsSlot || p.SlotPool != 0 || !p.SlotLevel.IsZero())) {
 		return CastReport{}, invalidInput("cast report: invalid spell, source, class, slot or level")
 	}
 	r := CastReport{spell: p.Spell, class: p.Class, source: p.Source, castAt: p.CastAtLevel, scaling: p.ScalingLevel, countsSlot: p.CountsAsSlot}

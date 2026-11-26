@@ -627,3 +627,5 @@ using the kernel's `modifier.Modifier` and `modifier.RollMode`." Not
 `srd5e.d20_test.*` signals are recorded by resolve-d20-test-use-case.md; from
 the first release containing them, renaming any signal or attribute key is
 **BREAKING** (`doc/rules/observability.md` §5).
+
+Amendment requested by `movement-lifting-and-flight.md` Q17 (spec-only, not yet applied): `d20` publishes one shared described-check type (skill, Difficulty Class, failure meaning) so `MovementCheckRequirement`, `HideCheckSpec` and `FallLandingCheck` can migrate to it together.

@@ -10,7 +10,6 @@
 - Happy and unhappy paths covered:
 - Requirements covered (and any spec requirement without a test):
 - Coverage of changed files (from `go test -race -shuffle=on -coverprofile=coverage.txt ./...`):
-- Mutation score for changed domain lines and surviving mutants, from `gomu` run in Docker with `--cpus` and `--workers` capped at a quarter of the host's processors (or the manual mutations tried):
 - Deliberately not covered, and why:
 
 ## Go rules

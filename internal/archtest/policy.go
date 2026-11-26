@@ -56,6 +56,7 @@ func DefaultPolicy() Policy {
 		"d20":                     {Kind: KindContext, Allow: kernel},
 		"content":                 {Kind: KindContext, Allow: kernel},
 		"character":               {Kind: KindContext, Allow: append([]string{"content", "d20"}, kernel...)},
+		"combat/combattest":       {Kind: KindSupport, Allow: []string{"combat", "srderr"}},
 		"combat":                  {Kind: KindContext, Allow: append([]string{"character", "d20", "content"}, kernel...)},
 		"toolbox":                 {Kind: KindContext, Allow: append([]string{"content", "d20", "character", "combat"}, kernel...)},
 		"internal/archtest":       {Kind: KindTooling},

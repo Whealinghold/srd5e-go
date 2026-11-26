@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `errors-and-results.md`, `dice-and-rolls.md`, `modifiers-and-advantage.md`, `ability-scores.md`, `observability-ports.md`, `d20-tests.md`, `content-schema-and-decoder.md`, `content-monsters.md`, `combat-foundations.md`, `hit-points-and-damage.md`, `conditions.md`, `initiative-and-actions.md` |
@@ -55,7 +55,7 @@ Owned elsewhere and reused: `Monster`, `HitPointsEntry`, `DefenseEntry`, `SpeedE
 | Proficiency Bonus (by CR) | `MonsterSetup.ProficiencyBonus` (`Modifier`) | p. 256. Not `character`'s `ProficiencyBonus` (levels only, +2 to +6). |
 | a defence not applied | `UnappliedDefense`, `UnappliedDefenseReason` (`qualified`, `described`), `MonsterDefenseKind` | Package names. |
 | a speed not applied | `UnappliedSpeed` | Package name. |
-| (setup problems) | `MonsterSetupProblem`, `MonsterSetupParse` (closed: `MonsterSetupParsed`, `MonsterSetupRejected`) | Package names. |
+| (setup problems) | `MonsterSetupProblem`, `MonsterSetupParse` (closed: `MonsterSetupParsed`, `MonsterSetupError`) | Package names. |
 
 Names without an SRD source add no rules (`doc/rules/architecture.md` §3).
 
@@ -67,11 +67,11 @@ Stable ids. Never renumber; new requirements get new ids. One behaviour each. Ea
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-001 | `MonsterSetup` MUST be an immutable value object built by `NewMonsterSetup(monster, hitPoints, opts...) (MonsterSetup, error)` with the options `WithSize`, `WithZeroHitPointsRule`, `WithInitiativeMode` and `WithExtraAffinities` (more than three optional values, so functional options). A rejection is a `*MonsterSetupRejected` error matching `srderr.ErrInvalidInput`; `MustMonsterSetup` (same arguments) panics with that error and is for literals and tests only. `hitPoints` is a required `ResolvedMonsterHitPoints`. It holds the `monster`, `size`, `hitPointStatus`, `hitPointsRaisedToOne`, `conditions`, `initiative`, `proficiencyBonus`, `speeds`, `unappliedDefenses` and `unappliedSpeeds` (the section 5 list), and is compared by value through an `Equal` method over all of them. | SRD 5.2.1, "Stat Block Overview", p. 254; architecture §3, §6 | happy |
+| FR-001 | `MonsterSetup` MUST be an immutable value object built by `NewMonsterSetup(monster, hitPoints, opts...) (MonsterSetup, error)` with the options `WithSize`, `WithZeroHitPointsRule`, `WithInitiativeMode` and `WithExtraAffinities` (more than three optional values, so functional options). A rejection is a `*MonsterSetupError` error matching `srderr.ErrInvalidInput`; `MustMonsterSetup` (same arguments) panics with that error and is for literals and tests only. `hitPoints` is a required `ResolvedMonsterHitPoints`. It holds the `monster`, `size`, `hitPointStatus`, `hitPointsRaisedToOne`, `conditions`, `initiative`, `proficiencyBonus`, `speeds`, `unappliedDefenses` and `unappliedSpeeds` (the section 5 list), and is compared by value through an `Equal` method over all of them. | SRD 5.2.1, "Stat Block Overview", p. 254; architecture §3, §6 | happy |
 | FR-002 | A monster with exactly one size option MUST take that size when `size` is absent. A supplied `size` equal to it is accepted. | SRD 5.2.1, "Size", p. 254 | happy |
 | FR-003 | A monster with several size options ("Medium or Small") and no `size` MUST be rejected with `MonsterSetupProblem.SizeChoiceRequired`; the engine does not pick (the SRD: "you choose the creature's size"). | SRD 5.2.1, "Size", p. 254; "Assassin", p. 260 | unhappy (invalid input) |
 | FR-004 | A `size` not among the monster's options MUST be rejected with `sizeNotOffered`, including any other size for a single-option monster. | SRD 5.2.1, "Size", p. 254 | unhappy (boundary) |
-| FR-005 | `NewMonsterSetup` MUST NOT panic for any argument values and MUST report every problem found, once each, in enum order `sizeChoiceRequired`, `sizeNotOffered`, `rolledExpressionMismatch`, in one `*MonsterSetupRejected` (it holds a copied, non-empty slice of `MonsterSetupProblem`s and is never built empty). A rejection is returned if and only if no `MonsterSetup` is built, and `MustMonsterSetup` panics exactly then. | `errors-and-results.md` FR-023 to FR-026; architecture §6 | unhappy (invalid input) |
+| FR-005 | `NewMonsterSetup` MUST NOT panic for any argument values and MUST report every problem found, once each, in enum order `sizeChoiceRequired`, `sizeNotOffered`, `rolledExpressionMismatch`, `contentNumberOutOfRange` (FR-052) and `setupArgumentInvalid` (no Hit Points choice, or a zero-hit-points rule or an Initiative mode that is not defined; amendment made while implementing), in one `*MonsterSetupError` (it holds a copied, non-empty slice of `MonsterSetupProblem`s and is never built empty). A rejection is returned if and only if no `MonsterSetup` is built, and `MustMonsterSetup` panics exactly then. | `errors-and-results.md` FR-023 to FR-026; architecture §6 | unhappy (invalid input) |
 | FR-006 | `MonsterSetup.Ref(CombatantID id)` MUST return `CombatantRef(id, MonsterCombatant(monster.id))`. The setup holds no `CombatantID`, so one setup value MAY be reused for several creatures only where the host wants identical Hit Points (FR-013). | `combat-foundations.md` FR-010, FR-013; `hit-points-and-damage.md` FR-104 | happy |
 
 ### 4.2 Hit Points
@@ -223,7 +223,7 @@ Table 4.7a, Speeds (one test per row).
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-045 | Everything but `SetUpMonsterCombatant` and its command and result MUST be in package `combat` files that are pure, synchronous and silent (none imports `telemetry`, `dice` or `context`). Those files MAY import only the kernel packages, `content`, `d20`, and the files of `combat` specs of lower rank; never a `combat` spec of rank 26 or higher, nor `toolbox` (checked by `internal/archtest`). | `combat-foundations.md` FR-014, FR-026; architecture §1, §2 | unhappy (forbidden edge) |
+| FR-045 | Everything but `SetUpMonsterCombatant` and its command and result MUST be in package `combat` files that are pure, synchronous and silent (none imports `telemetry` or `context`, or names a roller or calls `dice.Roll`; they import `dice` only for the `dice.Result` and `dice.Expression` values, amendment made while implementing). Those files MAY import only the kernel packages, `content`, `d20`, and the files of `combat` specs of lower rank; never a `combat` spec of rank 26 or higher, nor `toolbox` (checked by `internal/archtest`). | `combat-foundations.md` FR-014, FR-026; architecture §1, §2 | unhappy (forbidden edge) |
 | FR-046 | Package `combat` MUST export every type of section 5 with a godoc comment and no generic name (`Rejected`, `Applied`). No consumer-specific name appears. | architecture §4, §7, §9 | happy |
 | FR-047 | The setup MUST NOT hold a `Monster` copy in mutable form, a `*rand.Rand`, or any display text; `UnappliedDefense` and `UnappliedSpeed` carry the content value objects, not strings. | architecture §3, §10 | unhappy (immutability) |
 
@@ -244,6 +244,13 @@ Table 4.10a, `srd5e.combat.result` (first match wins).
 | `Applied`, method `RollHitPointDice` | `set_up_rolled` | applied |
 | `Invalid` holding `sizeChoiceRequired` | `size_choice_required` | invalid |
 | `Invalid` holding `sizeNotOffered` | `size_not_offered` | invalid |
+| `Invalid` holding `contentNumberOutOfRange` | `content_number_out_of_range` | invalid |
+
+### 4.11 Content numbers (plan P13)
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-052 | Before relying on them, `NewMonsterSetup` and `SetUpMonsterCombatant` MUST re-check the content numbers that content validated only structurally, and report `contentNumberOutOfRange` (result `content_number_out_of_range`, class `invalid`, before any roll) for the zero `Monster` or any of: the Hit Points average outside 1 to `content.MonsterMaxNumber`; Hit Point Dice or damage dice with a count outside 1 to `dice.MaxCount` or a die outside `content.MonsterHitPointDieFaces`; an Initiative modifier or score, or a speed, outside the printed range (speeds 0 to the maximum); a save or skill modifier whose difference from its ability modifier does not fit an `int`; an X/Day count, an in-Lair count, the Legendary Actions or a spell frequency count outside 1 to the maximum; a Recharge range outside 1 to 6 or reversed; a part with no usage; a Multiattack group or replacement count outside `content.MonsterMinAttackCount` to the maximum; a spell cast at a level outside 1 to 9. Interpretation: content gives no ceiling below `content.MonsterMaxNumber`, so none is invented; the length of an action list, a spell list or a plan is not capped until plan P10 is decided. | Plan P13; `content-monsters.md` FR-095 | unhappy (boundary, missing content) |
 
 ### Withdrawn ids
 
@@ -276,7 +283,7 @@ func (s MonsterSetup) SkillCheck(sk content.Skill) d20.RollModifiers
 func (s MonsterSetup) AbilityCheck(a ability.Ability) d20.RollModifiers
 func (s MonsterSetup) Equal(o MonsterSetup) bool
 
-// *MonsterSetupRejected holds a non-empty []MonsterSetupProblem; it matches srderr.ErrInvalidInput.
+// *MonsterSetupError holds a non-empty []MonsterSetupProblem; it matches srderr.ErrInvalidInput.
 type MonsterSetupProblem int // SizeChoiceRequired, SizeNotOffered, RolledExpressionMismatch
 
 type SetUpMonsterCombatant struct{ /* unexported */ }
@@ -316,7 +323,7 @@ Unit tests live in `combat/monster_setup_test.go` and its siblings (package `com
 
 | Id | Level | Notes |
 |---|---|---|
-| FR-001 to FR-006 | unit | `monster_setup_creation_test.go`: single size defaults, chosen size, the five size rows (Aboleth Large; Assassin Medium or Small with none, Small, Large; Aboleth Medium), problems in enum order and each once, `MustMonsterSetup` panics iff `NewMonsterSetup` returns an error, a `*MonsterSetupRejected` is never empty, `ref` kind and id, equality over each field, copied slices |
+| FR-001 to FR-006 | unit | `monster_setup_creation_test.go`: single size defaults, chosen size, the five size rows (Aboleth Large; Assassin Medium or Small with none, Small, Large; Aboleth Medium), problems in enum order and each once, `MustMonsterSetup` panics iff `NewMonsterSetup` returns an error, a `*MonsterSetupError` is never empty, `ref` kind and id, equality over each field, copied slices |
 | FR-007 to FR-014 | unit | `monster_hit_points_test.go`: table 4.2a, closed type switch exhaustive, current equals maximum and Alive, no Temporary Hit Points, `hitPointsRaisedToOne` both ways, wrong count/die/modifier each rejected, a Gargantuan block keeps a non-d20 die, two setups of one block with different rolls differ |
 | FR-015 to FR-017 | unit | `zero_hit_points_rule_test.go`: default `DiesInstantly`; `FallsUnconscious` kept; the resulting status Dead on 0 damage versus Dying (through `applyDamage`); same default for CR 0 and CR 30 |
 | FR-018 to FR-024 | unit | `monster_defenses_test.go`: table 4.4a; damage and condition entries never cross; duplicate and Resistance-with-Vulnerability cases; unapplied order; `extraAffinities` union |
@@ -330,7 +337,18 @@ Unit tests live in `combat/monster_setup_test.go` and its siblings (package `com
 
 - **Doubles and contract suites:** none new.
 - **Mutation testing:** the `monster_setup*.go` files of package `combat` with gomu run only inside Docker with `--cpus` and `--workers` capped at 1/4 of `nproc` (`doc/rules/testing.md` §8; never run locally), watching `< 1` versus `<= 1` in FR-009, the three-way split of FR-030 and FR-031 (`d == 0`, `== PB`, `== 2 * PB`), and the qualified check in FR-021. `SetUpMonsterCombatant` SHOULD be mutation tested.
-- **Not covered:** nothing.
+- **Not covered:** see "Not yet implemented" below.
+- **Implementation status.** Partially implemented in package `combat`. Every requirement id FR-001 to FR-052 is T and has a test, except the content-source rows below. The case tables name stat blocks that are not bundled (the bundle holds no monster until Phase 5), so the tests use synthetic monsters that carry the printed numbers. Files, all silent: `monster_setup.go` (`MonsterSetup`, `NewMonsterSetup`, `MustMonsterSetup`, the options, `MonsterSetupProblem`, `MonsterSetupError`), `monster_setup_hit_points.go`, `monster_setup_defenses.go`, `monster_setup_stats.go` (the Initiative plan, speeds, Proficiency Bonus and the save and skill modifiers) and `monster_setup_numbers.go` (FR-052); the use case is `set_up_monster_combatant.go`. `internal/archtest/combat_monster_setup_test.go` enforces FR-007, FR-025, FR-028, FR-037, FR-045 to FR-047 and the signal names. `FuzzNewMonsterSetup` and `FuzzSetUpMonsterCombatant` are the fuzz targets and `ExampleSetUpMonsterCombatant` is the example. The plan P10 caps are built (Limits below) and tested in `monster_setup_limit_test.go`; the checks of FR-052 are tested branch by branch in `monster_setup_numbers_forged_internal_test.go` (below, "P13"). Decisions made while implementing (the rejection error is named `MonsterSetupError` instead of `MonsterSetupError` because the `errname` lint requires the `Error` suffix):
+  - **Go names.** The use case method is `Run` and `NewSetUpMonsterCombatant` returns `(SetUpMonsterCombatant, error)` for a nil roller, like every combat use case; the signal constants are unexported (`valueOperationSetUpMonsterCombatant`, `metricMonsterHitPointsClamped`, ...). The members are `DefenseVulnerability`, `DefenseResistance`, `DefenseImmunity`, `DefenseQualified`, `DefenseDescribed`, `MonsterInitiativeRolled`, `MonsterInitiativeFixed`; `RolledMonsterHitPoints` is a struct with a `Roll` field. `MonsterSetupParse`, `MonsterSetupParsed` and `MonsterSetupError` as a variant are not built: no requirement uses them.
+  - **Problems.** `MonsterSetupProblem` also has `ContentNumberOutOfRange` (FR-052), `SetupArgumentInvalid` (no Hit Points choice, or an undefined rule or mode) and `SetupLimitExceeded` (plan P10, value `limit_exceeded`; see Limits below). The use case checks the arguments itself and returns `srderr.ErrInvalidInput` before any signal for them, so its Invalid result holds only the first three kinds found before a roll, and its result value `content_number_out_of_range` is new. The zero `Monster` is `ContentNumberOutOfRange`.
+  - **No content source.** `SetUpMonsterCombatant` takes a `content.Monster` the host fetched and reads no `content.Source`, so there are no unknown-id, duplicate-entry, decode or failing-source rows here; they belong to `content` (the Source contract suites and the loader tests). The missing-content row of this spec is the zero `Monster`. `monster-limited-use.md` handed those rows to this step; with the command as specified they have no surface.
+  - **Imports.** The pure files import `dice` for `dice.Result` and `dice.Expression` only (FR-045 amended). They do not use the files of the other rank-26 specs; the leaf range checks of FR-052 repeat the two or three lines of `monster_setup_numbers.go` that `limited_use_entry.go` also holds.
+  - **P13.** The checks are `monster_setup_numbers.go`; their ranges come from `content.Monster*` and `dice.MaxCount`. A modifier whose difference from its ability modifier does not fit an `int` is out of range, which only matters at 32-bit width (`GOARCH=386`; the unexported `modifiersFit` takes the fit test as a parameter, so `TestModifiersFit` forces the three rejecting branches, the zero ability block, a save and a skill, at any width). Content's constructors reject every bad number, so no `content.Monster` can reach a rejecting branch. The check therefore reads the stat block once into a plain `monsterNumbers` value (`monsterNumbersOf`) and judges that (`monsterNumbers.ok`); `TestMonsterNumbersRejectEachBadNumber` forges one bad number per row (Hit Points average and dice, Initiative modifier and score, a speed, overflowing modifiers, Legendary Actions, a part with no usage, an X/Day, a Recharge, a Multiattack count, a spell frequency, a spell level and damage dice, each at a boundary) and the base passes, so deleting one branch of `monsterNumbers.ok` fails exactly one row, and `TestMonsterNumbersOfReadsTheStatBlock` pins the reading of a built monster.
+  - **Invalid abilities and skills** give the zero `RollModifiers` from `SavingThrow`, `SkillCheck` and `AbilityCheck`. A speed list is never empty (content rejects it), so the "no Speed entries" row of table 4.7a has no test.
+
+**Limits (plan P10; design numbers, not SRD rules).** `NewMonsterSetup` and `SetUpMonsterCombatant` take a stat block of at most 64 parts (all sections together), 64 spells (over the groups of its first Spellcasting), 64 spell groups, 64 Multiattack variants, 64 attack groups and 64 replacement rules (the three plan numbers are totals over the stat block). Over one, `NewMonsterSetup` returns a `*MonsterSetupError` whose only problem is `SetupLimitExceeded` (value `limit_exceeded`; never `ContentNumberOutOfRange`, and `monsterNumbersOK` does not walk the oversized block), and `SetUpMonsterCombatant.Run` returns `SetUpMonsterCombatantInvalid` with it, class `invalid`, before it rolls the Hit Point Dice. `monster_setup_limit_test.go` tests every cap at 64 and 65.
+
+Not yet implemented: D-1, the contract tests of tables 4.2a to 4.7a against the bundled stat blocks (the bundle holds no monster until Phase 5). The cap tests of plan P10 are written (Limits above). Mutation testing: mutation skipped at user request; no mutation score.
 
 ## 9. Open questions and decisions
 

@@ -2,10 +2,23 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `conditions.md`, `equipment-rules.md`, `d20-tests.md`, `ability-scores.md`, `content-schema-and-decoder.md`, `initiative-and-actions.md` |
+
+**Implementation status.** Implemented in package `combat`, files `movement_load.go`, `movement_jump.go`, `movement_landing.go`, `movement_check.go`, `movement_flight.go` and `movement_burrow.go` (tests named after the source files, `movement_fixtures_test.go`, `movement_fuzz_test.go`; `internal/archtest/combat_movement_test.go`; `scenarios/movement_test.go` for S-1 to S-3): every live requirement id of section 4 is T and has a test. Pure and silent, as section 7 says. Spec corrections made while implementing, all decided in the code:
+
+- **Go names.** Enum members carry their type's prefix, because bare `Prone`, `Incapacitated`, `Running`, `Hover` and the like are generic or already the condition types of `conditions.md`: `JumpKindLong`, `JumpKindHigh`; `JumpApproachRunning`, `JumpApproachStanding`; `JumpRefusalProneRestrictedMovement`, `JumpRefusalExceedsMaximumDistance`, `JumpRefusalInsufficientMovement`; `LoadLimitScopeAllSpeedsByEqualAmount`, `LoadLimitScopeWalkOnly`; `MovementCheckKindLongJumpLanding`, `MovementCheckKindLongJumpObstacle`, `MovementCheckKindClimbingHardSurface`, `MovementCheckKindSwimmingRoughWater`; `MovementCheckFailureEffectBecomesProne`, `MovementCheckFailureEffectHitsObstacle`, `MovementCheckFailureEffectNotSpecified`; `HoverAbilityNone`, `HoverAbilityHover`; `FlightFallCauseIncapacitated`, `FlightFallCauseProne`, `FlightFallCauseFlySpeedZero`; `BurrowMediumSand` to `BurrowMediumSolidRock`; `SolidRockAccessNone`, `SolidRockAccessAllowedByTrait`; `BurrowRefusalSolidRock`. The cases-table kind `ObstacleForLongJump` of 4.4a is `MovementCheckKindLongJumpObstacle` (section 5 had it right).
+- **Errors.** `combat` declares no `InvalidError`; every invalid argument returns an error wrapping `srderr.ErrInvalidInput` (`invalidInput`), as the other `combat` constructors do. The inputs are also checked for an invalid enum value (kind, mode, hover) and the zero Strength score, which the spec leaves implicit.
+- **`FlightFallCauses`.** `FlightStaysAloft.OverriddenCauses` and `FlightFalls.Causes` are a comparable set value (`Slice()` returns a fresh ordered copy, `Has`) instead of a slice, so every assessment compares with `==` (FR-047) and no slice aliases stored state.
+- **Described, not stored.** `LoadSpeedLimited` and `Armor` are `character.LoadSpeedLimited` and `content.Armor`; `LimitFeet` and `SpeedPenaltyFeet` are exported methods (`LimitFeet()`, `character.ArmorRules.SpeedPenaltyFeet`), and `MovementSpeeds.AdjustedBy` is the exported `adjustedBy`. `MovementCheckRequirement` stores only its kind; skill, DC and failure effect are derived by `switch`, not a table variable (plan P6).
+- **Zero values.** The zero `JumpAttempt` is refused by `AssessJump` as the zero `JumpRefused`; an invalid `BurrowMedium` is the zero `BurrowRefused`; the zero `FlightFacts` is a creature with a Fly Speed of 0, which falls.
+- **Arithmetic.** `HighJumpReachFeet` computes `height * 3 / 2` as `height + height / 2` (equal for every non-negative height, with no overflow) and saturates the sum; `LimitSpeedsByLoad` and `ApplyArmorSpeedPenalty` rely on the saturating `AdjustedBy`. Overflow rows run at `math.MaxInt` and `math.MinInt` (the 32-bit `combat` run covers them).
+- **Named boundaries of the plan (step 7c).** `TestLoadThresholdsLimitTheSpeedOnlyBetweenCarryAndDragLiftPush` composes `character.NewCarryingCapacity(...).Assess` with `LimitSpeedsByLoad` at the Carry maximum, one pound above, the Drag/Lift/Push maximum and one above, for Strength 1, 10, 30 and the zero score. The Carrying Capacity table itself stays tested in `character` (FR-006).
+- **P10 (library limits)** is open: no cap exists for this spec, which builds no collection, so there are no cap tests.
+
+Not yet implemented: none. The amendment of Q8 (a `jumpAbilityScore` and a `distanceMultiplier` on `JumpAttempt`) is requested for when class-monk.md FR-042 and class-rogue.md FR-094 are implemented and is not part of this spec yet.
 
 Data reference only: `content-monsters.md` (the `Hover` flag of `SpeedEntry`,
 FR-016). Handoff targets, not dependencies: `environment-hazards-and-objects.md`

@@ -1,0 +1,21 @@
+1: encounter_started tracker_round_started tracker_turn_started
+2: action_taken attack_made_in_attack_action attack_performed damage_taken dropped_to_zero_hit_points died
+3: tracker_turn_ended tracker_turn_started
+4: tracker_turn_ended tracker_turn_started
+5: action_taken
+6: tracker_turn_ended tracker_turn_started
+7: action_taken attack_made_in_attack_action attack_performed
+8: tracker_turn_ended tracker_round_started tracker_turn_started
+9: action_taken attack_made_in_attack_action unarmed_strike_performed condition_applied movement_speeds_review_became_due
+10: tracker_turn_ended tracker_turn_started
+10: tracker_turn_ended tracker_turn_started
+10: tracker_turn_ended tracker_turn_started
+11: action_taken attack_made_in_attack_action attack_performed damage_taken dropped_to_zero_hit_points fell_unconscious condition_applied movement_speeds_review_became_due
+12a: tracker_turn_ended tracker_round_started tracker_turn_started
+12: action_taken attack_made_in_attack_action attack_performed
+13: attack_made_in_attack_action attack_performed damage_taken dropped_to_zero_hit_points died
+14a: tracker_turn_ended tracker_turn_started
+14b: tracker_turn_ended tracker_turn_started dying_combatant_turn_started
+15: death_saving_throw_made
+16: hit_points_restored recovered condition_removed
+17: encounter_ended

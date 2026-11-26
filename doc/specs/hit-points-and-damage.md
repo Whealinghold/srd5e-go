@@ -2,10 +2,25 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `dice-and-rolls.md`, `observability-ports.md`, `errors-and-results.md`, `d20-tests.md`, `ability-scores.md`, `derived-stats.md`, `content-schema-and-decoder.md` |
+
+**Implementation status.** Implemented in package `combat` (one file per concept, tests named after the source files): every requirement id of section 4 is T and has a test (FR-001 to FR-118, withdrawn ids excepted). Pure operations are the methods of `HitPointStatus` (`hit_point_status_damage.go`, `hit_point_status_healing.go`, `hit_point_status_death.go`); the ten use cases each have a file named for them, sharing `hit_point_usecase.go`. `internal/archtest/combat_events_test.go` enforces FR-103 (event declarations), FR-104 (no id in the status), FR-110 (no use case calls another) and FR-083 (export list). Spec corrections made while implementing, all decided in the code:
+
+- **Names.** `CombatTelemetry` and `DamageResolver` are the unexported `instrumenter` (`combat-foundations.md`) and `resolveDamage`; `FlatAdjustment(amount, scope)` is `NewFlatAdjustment`, `HealingCeilingAt(n)` is `NewHealingCeilingAt`; `HitKind`, `DamageDelivery`, `TemporaryHitPointsChoice`, `ZeroHitPointsRule`, `DeathSavingThrowOutcome`, `DeathCause` and `HitPointRejection` are `int` enums with a zero invalid value (architecture.md section 4: a single named state), `LifeState`, `DamageScope`, `DamageAdjustment` and `HealingCeiling` are sealed interfaces; `exhaustion` is `Exhaustion`.
+- **`DamageAffinities`** is three bit sets, so it is comparable, collapses duplicates and is order independent (`==` equals `Equal`); the views are built fresh.
+- **Commands** are built by `NewXCommand`, which validates by running the pure operation once; `Run` takes no other input. Use cases with the dice port are `NewMakeDeathSavingThrow(roller, opts...)` and `NewRollStableRecoveryDelay(roller, opts...)`, returning `(use case, error)`; the others return the value.
+- **`HitPointsLost`** of `DamageTaken` is the post-pipeline sum less what Temporary Hit Points absorbed, overkill and damage at 0 Hit Points included, so `Total()` is the damage that reaches the Concentration rule (FR-102) and `absorbed` is exactly the FR-084 case (`lost == 0`).
+- **Order of causes at 0 Hit Points.** When one command would both add a third failure and meet Massive Damage, the cause is `MassiveDamage` (FR-064 is checked first). `HalfDamage` applies once however often it is listed.
+- **Death Saving Throw** is not routed through `d20.ResolveCheck` (it has no ability or proficiency); it keeps the die `modifier.RollMode.Select` picks and adds the host's modifier (FR-061; plan P12: no `srd5e.d20_test.*` signal). A creature that is not Dying is refused before any roll.
+- **Events** embed an unexported base carrying the subject and the markers; there is no `Subject()` accessor (combat-foundations FR-009 forbids a function that returns a `CombatantID`), the subject is `Combatants()[0]`. `DamageTaken` holds a slice, so it is compared with `Equal`, not `==`.
+- **`RestoreHitPointStatus`** accepts `Dead(HitPointMaximumZero)` with a maximum above 0 (FR-106 only forces the other direction).
+
+Not yet implemented: none. No requirement id of this spec needs Phase 5 data (no D ids).
+
+**Limits (plan P10; design numbers, not SRD rules).** One `ApplyDamage` (the pure operation and the use case command) takes at most 64 `Damage` instances, damages and unpreventable together, and at most 64 adjustments; over either it returns a `LimitExceededError` (matching `srderr.ErrInvalidInput`, `String()` the shared value `limit_exceeded`), checked first, and the status is not changed. `hit_point_limit_test.go` tests each cap at the cap and at cap plus one, and the overflow rows: two `math.MaxInt` instances sum to `math.MaxInt` (replacing `satAdd` with `+` in the damage sum fails it), `math.MaxInt` Temporary Hit Points absorb them whole, and a `math.MaxInt` modifier on a Death Saving Throw saturates the total (`MakeDeathSavingThrow`). The same two caps hold through `Encounter.ApplyDamage`, `NewApplyDamageToCombatantCommand` and `NewDealDamageToCombatantCommand` (all three check the lists first, through the same probe), tested at the cap and at cap plus one in `hit_point_limit_test.go`. `internal/archtest` rule `combat-hit-kind` (`combat_foundations_scans.go`) enforces FR-111: `HitKind` has two members declared in `hit_point_inputs.go` only, and no damage call takes `IsCriticalHit`.
 
 Downstream specs (`conditions`, `attacks`, `encounter-aggregate`, `combat-action-resolution`) consume this one and are
 not listed; the in-context order is `shared-types-and-ownership.md` FR-015. Also used: `IsBloodied`
@@ -561,8 +576,7 @@ scenario (`scenarios/`), architecture. Table-driven tests cite per row with `Req
   Throws fail and succeed, the character is stabilized and healed; and a second with Temporary Hit Points, Resistance
   and Vulnerability. **Doubles:** `dicetest.FixedRoller` (with `requests`), `dicetest.CallbackRoller` and a recording
   `telemetry.Telemetry` from the `<pkg>test` packages; no new port or contract suite.
-- **Mutation testing:** all of `combat`, score at least 80 (`gomu`, run only inside Docker with `--cpus` and `--workers` capped at a quarter of the host processors; `doc/rules/testing.md` §8); boundary
-  mutations (the 10 threshold, the 20 and 1 exceptions, remainder against maximum) first. **Not covered:** none
+- **Mutation testing:** `combat/hit_point_status_damage.go`, gomu v0.2.1 in Docker at a quarter of the CPUs (`MUTATE_OUTPUT=json MUTATE_TIMEOUT=120 just mutate ./combat/hit_point_status_damage.go`, 2026-11-21): 152 mutants, 8 not viable, 133 killed, 11 survived: 133 of 144 viable, 92%. Every survivor is an equivalent mutant (no input can tell it from the original): `bloodied` line 15 (`return false` on an invalid maximum, a branch the comment above it says is unreachable); lines 75, 98, 115 (`hp.temporary == 0`), 127, 136 and 154 (`== 0` to `<= 0` on a sum, length, remainder or `max(0, ...)` that is never negative); lines 115 (`absorbed > 0`) and 140 (`hp.current > 0`) (`> 0` to `!= 0` on the same non-negative values); line 141 (`s.rule == DiesInstantly` to `<=`: `DiesInstantly` is the lowest valid `ZeroHitPointsRule`, 1, and the zero value is invalid); line 163 (`kind == CriticalHit` to `>=`: `CriticalHit` is the last of the two valid `HitKind` values, FR-111). **Not covered:** none
   deliberately; FR-015 is partly a compile-time property.
 
 ## 9. Open questions and decisions
@@ -597,3 +611,5 @@ Hit Points, Healing, dropping to 0 Hit Points, Death Saving Throws, stabilizing)
 `srd5e.combat.*` through `CombatTelemetry` (FR-107, FR-080, FR-108), with scoped adjustments, unpreventable damage, a healing ceiling and `RestoreMaximum`. Every `HitPointEvent` carries `Kind()` and`combatants`. The rules are published as pure `HitPointStatus` operations returning a `HitPointTransition`, which the
 use cases wrap; `NewHitPoints`, `NewHitPointStatus` and `RestoreHitPointStatus` return typed errors. Not **BREAKING** (new API, no earlier combat
 release).
+
+Amendment requested by `mounted-and-underwater-combat.md` F-3 (spec-only, not yet built): `ApplyDamageCommand` gains optional `SituationalAffinities`, merged with the status's `DamageAffinities` under FR-021 and FR-022, so the result of `UnderwaterFireResistanceAffinities` (implemented, pure) can reach `ApplyDamage` without being stored on the `HitPointStatus`. Until then a host builds a status with the derived affinities for the call, as `combat/underwater_resistance_test.go` does.

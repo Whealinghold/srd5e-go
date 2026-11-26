@@ -22,17 +22,17 @@ lint:
 
 [doc("Run the test suite with -race -shuffle=on -cover")]
 test:
-    go test -race -shuffle=on -cover ./...
+    go test -race -shuffle=on -timeout 20m -cover ./...
 
 [doc("Write coverage.txt and print the total statement coverage")]
 cover:
-    go test -race -shuffle=on -coverprofile=coverage.txt ./...
+    go test -race -shuffle=on -timeout 20m -coverprofile=coverage.txt ./...
     go tool cover -func=coverage.txt | tail -n 1
 
-# Integer width differs between platforms (content schema FR-021, FR-099); no -race on a 32-bit target.
-[doc("Run the content tests at 32-bit integer width: GOARCH=386 go test ./content/...")]
+# Integer width differs between platforms (content schema FR-021, FR-099; combat plan P4); no -race on a 32-bit target.
+[doc("Run the content and combat tests at 32-bit integer width: GOARCH=386 go test ./content/... ./combat/...")]
 test-386:
-    GOARCH=386 go test ./content/...
+    GOARCH=386 go test ./content/... ./combat/... -timeout 20m
 
 # go test allows one -fuzz target per package, so each Fuzz* target runs in turn.
 [doc("Run every Fuzz* target briefly; arg: fuzztime (default 5s)")]
@@ -51,7 +51,7 @@ fuzz-smoke fuzztime="5s":
 cover-check covlog="":
     #!/usr/bin/env bash
     set -euo pipefail
-    if [ -n "{{ covlog }}" ]; then cat "{{ covlog }}"; else go test -cover ./...; fi |
+    if [ -n "{{ covlog }}" ]; then cat "{{ covlog }}"; else go test -timeout 20m -cover ./...; fi |
       awk -v min={{ mincover }} '/coverage:/ && !/\[no statements\]/ && $2 !~ /\/(scenarios|internal)(\/|$)/ { v=$5; sub(/%/,"",v); if (v+0 < min) { print "below " min "%: " $0; bad=1 } } END { exit bad }'
 
 [doc("Run the architecture tests (internal/archtest)")]

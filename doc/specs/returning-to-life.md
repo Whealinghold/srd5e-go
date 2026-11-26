@@ -2,11 +2,22 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `conditions.md`, `hit-points-and-damage.md`, `magical-effects.md` |
 | Consumed by | `encounter-aggregate.md` (revival transition), `combat-action-resolution.md` (amendment: the `ReviveCombatant` use case) |
+
+**Implementation status.** Implemented in package `combat`: the pure, silent function `Revive` and the use case `ReviveCombatant` that wraps it. Every id of section 4 is T and has a test (FR-001 to FR-015 in `combat/returning_to_life_test.go` and `combat/revival_event_test.go`; FR-016 in `internal/archtest/combat_returning_to_life_test.go`, with the package-wide unique `kind` scan of `TestCombatEventDeclarations`, and the use case in `combat/revive_combatant_usecase_test.go` and `combat/revive_combatant_signals_internal_test.go`). Files: `combat/returning_to_life.go`, `combat/revival_event.go`, `combat/revive_combatant_usecase.go` (the only one that holds telemetry; the constants are in `combat/signals.go`).
+
+- **Go names.** The pure function is `combat.Revive(ReviveCreatureCommand) ReviveCreatureResult`; the spec's "`ReviveCreature`" in FR-001 to FR-015 is that function. The command is read with keyed literals: `Subject`, `Status`, `HitPoints` (the revival value), `Consent`, `Conditions`, `Effects`, `ElapsedConditions`, `ElapsedEffects`. `ReviveCreatureApplied` reports `Status()`, `Conditions()`, `Effects()` and `Events() []Event` (the return event, then the condition events of `conditions.md`, in the order of FR-013); every refusal reports the same three unchanged. `CreatureReturnedToLife` reads its Hit Points with `HitPoints()`.
+- **Order of checks and inputs.** Not Dead (FR-001; a zero `Subject` counts as not Dead, as there is no creature to return, and the zero `HitPointStatus` is not Dead), then the consent (FR-002: only `SpiritAccepts` revives, so the zero or an unknown `RevivalConsent` is a refusal and the function fails closed), then the maximum (FR-006), then the revival value (FR-004). Dropped conditions go in the order of the set except that Unconscious goes first, because removing it leaves the creature Prone (`conditions.md` FR-031) and no event reports that Prone; a lapsed Prone named with it is then removed too. The function has no error return; a malformed value is one of the five variants.
+- **The use case.** `combat.NewReviveCombatant(opts...)` returns `ReviveCombatant` (options `WithTelemetry`, `WithClock`); `Run(ctx, ReviveCombatantCommand) (ReviveCombatantResult, error)` takes the command of `Revive` (`ReviveCombatantCommand` has its fields) and returns `Revive`'s own answer unchanged as a `ReviveCombatantResult` (an interface with the marker and the five variants of `ReviveCreatureResult`, `combat-foundations.md` FR-022), in one `Instrumenter` operation `revive_combatant` (span `srd5e.combat.revive_combatant`), with no `Encounter` and no `ActionLedger` (Q-5), no die and no port. It adds no sixth variant (that would break the closed set of section 5). **Caps (plan P10, decided by delegation, design numbers not SRD rules):** `ElapsedConditions` holds at most 15 kinds (a creature holds one explicit condition per kind), `ElapsedEffects` at most 64 ids (the active-effects cap per creature; the held `Effects` list is capped at 64 by `NewOngoingEffects`, magical-effects.md Limits). A list over its cap is an error matching `srderr.ErrInvalidInput` (`limit_exceeded`), recorded on the span only and counted as no result, like the malformed commands of `spell-outcome-tables.md` FR-090. The pure `Revive` applies no cap. A cancelled `ctx` is returned unwrapped before any signal.
+- **Named boundary.** The spec has no clock (Q-3): the "edge of the time window" is a duration the host reports as elapsed or ongoing. The tests hold the pair either side of it (a condition or effect named elapsed is dropped; one not named is kept; a name the creature does not hold changes nothing, FR-015), and the Hit Point edge at the maximum, one above it, and `math.MaxInt` and `math.MinInt`.
+- **Hit-point construction.** The new status is built inside the package from the validated parts instead of through `RestoreHitPointStatus`, because the maximum and the capped value are already proven valid and the restore factory's error branch would be unreachable; the result is the one FR-087 of `hit-points-and-damage.md` gives.
+- **Follow-up (Q-5).** Like Death Ward and a Hit Point maximum increase (`combat-action-resolution.md` Q-51), a revival acts on host-held values: the `Encounter` root has no method that commits a `ReviveCreatureApplied` until `encounter-aggregate.md` gains a revival transition (see its "Consumed by" entry). That is a later spec amendment, not part of this step.
+
+Not yet implemented: none. `combat-action-resolution.md` FR-168 and FR-170 now list `ReviveCombatant` (`revive_combatant`) among their 29 and 30 operations; this spec owns it. Mutation testing is skipped for Phase 4 by user decision.
 
 Split from `magical-effects.md` (its FR-097 to FR-108, FR-110, FR-111 and FR-146,
 withdrawn there in favour of FR-001 to FR-015 here). Rank 27
@@ -137,9 +148,9 @@ Baseline: `ConditionSet` {Poisoned, Blinded}, `OngoingEffects` [contagion `c1`, 
 
 ## 7. Observability
 
-Silent by design (`doc/rules/observability.md` §3); no signal of its own. The
-use case `ReviveCombatant` (`revive_combatant`) of the `combat-action-resolution.md` amendment records through `CombatTelemetry`
-(`combat-foundations.md` FR-029 to FR-035).
+`Revive` is silent by design (`doc/rules/observability.md` §3); no signal of its own. The
+use case `ReviveCombatant` (`revive_combatant`, span `srd5e.combat.revive_combatant`) records through the shared `Instrumenter`
+(`combat-foundations.md` FR-029 to FR-035): the operations counter, the duration histogram and one `srd5e.combat.events` count per event of an applied result; it defines no attribute and no counter of its own and never logs. A list over its cap is an error on the span only.
 
 | Variant | `srd5e.combat.result` | Class |
 |---|---|---|
@@ -150,8 +161,7 @@ use case `ReviveCombatant` (`revive_combatant`) of the `combat-action-resolution
 | `ReviveCreatureMaximumBelowOne` | `revive_maximum_below_one` | refused |
 
 Seven questions: (1) the host calls revive on a living creature, or passes a bad
-Hit Point value or maximum (`refused`). (2) By `srd5e.combat.operations` once that use case
-lands. (3) The result carries the Hit Points after capping and, in events, what
+Hit Point value or maximum (`refused`). (2) By `srd5e.combat.operations` (`ReviveCombatant`). (3) The result carries the Hit Points after capping and, in events, what
 was dropped. (4) Each call by result. (5) Existing instrumentation is unchanged.
 (6) Sustained `revive_not_dead` is a host state bug; a rise in
 `revive_maximum_below_one` is an upstream Hit Point maximum bug. (7) Nothing is
@@ -165,10 +175,9 @@ noisy: no log.
 | FR-009, FR-010, FR-015 | unit | Table 4.2, one test per row, including the absent-item row |
 | FR-011, FR-012 | unit | Table 4.3; level 6 gives 5; none gives none |
 | FR-013, FR-014 | unit | Event order including the wrapped condition events; inputs unchanged |
-| FR-016 | architecture | Import direction; `kind` unique across the package (scan) |
+| FR-016 | architecture, application | Import direction; `kind` unique across the package (scan); the use case: one row per variant with its result, class and event kinds, Noop equal to recording, the caps at and over, a cancelled `ctx`, inputs unchanged |
 
-No doubles or contract suites. Mutation testing (`doc/rules/testing.md` §8): all
-changed lines in `combat`; boundary rows exist for FR-004 and FR-005.
+No doubles or contract suites. Mutation testing (`doc/rules/testing.md` §8) is skipped for Phase 4 by user decision; boundary rows exist for FR-004 and FR-005.
 
 ## 9. Open questions and decisions
 
@@ -176,11 +185,12 @@ changed lines in `combat`; boundary rows exist for FR-004 and FR-005.
 |---|---|---|---|
 | Q-1 | Revival effect says 0 Hit Points? | Settled, see below. | settled |
 | Q-4 | "Unless otherwise stated" overrides? | Settled, see below. | settled |
+| Q-5 | Does the `Encounter` root commit a revival? | No: until `encounter-aggregate.md` gains a revival transition the host holds the values (follow-up, like `combat-action-resolution.md` Q-51). | settled |
 
 Settled, one line each: Q-1 a revival value below 1 is rejected (FR-004): a living creature at 0 is not constructible (`hit-points-and-damage.md` FR-090) and p. 180 says only that "the revival effect determines" the Hit Points, and the SRD revival spells give 1 Hit Point or all of them (Revivify, Resurrection-type effects; interpretation: a positive value is the reasonable reading). Q-2 only what the host reports elapsed is dropped; the package keeps no clock or durations (FR-009, FR-015). Q-3 same. Q-4 no extra input: "unless otherwise stated" (p. 180) is met by the host listing a condition or effect it wants cleared in `ElapsedConditions` / `ElapsedEffects`, by calling `Remove` or `ReduceExhaustion` afterwards for further changes, and by adding anything the revival imposes with the ordinary `conditions.md` operations after `ReviveCreatureApplied` (design: no per-spell override type).
 
 ## 10. Changelog impact
 
 - **Added:** returning to life (the "Dead" entry) in `combat`
-  (`doc/specs/returning-to-life.md`).
+  (`doc/specs/returning-to-life.md`), with the use case `ReviveCombatant`.
 - **BREAKING:** no. Everything is new.

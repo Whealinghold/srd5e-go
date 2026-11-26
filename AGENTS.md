@@ -146,6 +146,8 @@ srd5e-go/
 │   └── contenttest/        # FakeSource, FakeDecoder, contract suite
 ├── d20/                    # first bounded context (domain + use case, one package)
 ├── character/              # character context (Phase 3): derived stats, aggregate, class behaviour
+├── combat/                 # combat context (Phase 4): hit points, conditions, attacks, turns, encounter
+│   └── combattest/         # event-family checks
 ├── internal/
 │   └── archtest/           # architecture tests (import scan against the allow-list)
 └── scenarios/              # cross-package tests, public API only (package scenarios_test)
@@ -170,7 +172,7 @@ are the context map in `doc/rules/architecture.md` §2; change it there.
 - `d20/`: D20 Tests (ability checks, saving throws, attack rolls), DCs, Advantage and Disadvantage, success and failure resolution (exists)
 - `content/` (in progress, Phase 2): species, backgrounds, classes, feats, spells, equipment, monsters, and the content-source ports
 - `character/` (in progress, Phase 3): abilities, Proficiency Bonus, level, derived stats, spellcasting, equipment rule maths
-- `combat/` (planned): initiative, actions, attacks, conditions, hit points, damage
+- `combat/` (in progress, Phase 4): initiative, actions, attacks, conditions, hit points, damage
 - `toolbox/` (planned): Gameplay Toolbox rules; downstream of all the others, nothing depends on it
 
 Update this section when the structure changes.
@@ -185,10 +187,11 @@ just vet        # go vet ./...
 just lint       # golangci-lint run ./...
 just test       # go test -race -shuffle=on -cover ./...
 just arch       # architecture tests
-just test-386   # GOARCH=386 go test ./content/... (32-bit integer width, no -race; CI runs it as its own job)
+just test-386   # GOARCH=386 go test ./content/... ./combat/... (32-bit integer width, no -race; CI runs it as its own job)
 just check      # what CI runs: gofmt, vet, lint, coverage (cover-check), the 32-bit content tests, go mod tidy -diff, arch, fuzz-smoke
 ```
 
-Mutation testing (`gomu`) is never run on the host. Run it only inside Docker
-with CPU capped at 1/4 of the processors; the exact command is in
-`doc/rules/testing.md`.
+Mutation testing is not part of the normal process: no change needs a score and
+CI does not run it. If a person asks for a run, use `just mutate`. It runs in Docker
+with the CPU capped at 1/4 of the processors. Never run `gomu` on the host.
+The rules are in `doc/rules/testing.md` section 8.

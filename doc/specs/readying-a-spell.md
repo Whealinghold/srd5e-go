@@ -2,10 +2,21 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `initiative-and-actions.md`, `content-schema-and-decoder.md`, `content-spells.md` |
+
+**Implementation status.** Implemented in package `combat`, file `held_spell.go` (tests `held_spell_test.go`; `internal/archtest/combat_held_spell_test.go`): every requirement id of section 4 is T and has a test. `ReadiedSpell` and `HeldSpellInput` (FR-001, RA-2) already existed from `initiative-and-actions.md` step 5 (`ready.go`), so this step adds the rest: `ConcentrationHold`, `ReleaseHoldRequest`, `DissipationCause`, the three pure functions with their closed results, and the `HeldSpellEvent` family. Pure and silent, as section 7 says: `held_spell.go` imports only `content` and names no signal. Spec corrections made while implementing:
+
+- **Go names.** The two `DissipationCause` values are `DissipationConcentrationBroken` and `DissipationReadyElapsed`, because `ConcentrationBroken` is already a `ConditionEffect` of `conditions.md`. `CombatEvent` of the spec is the repo's `Event`. The event accessors are `Spell()` on all three and `Cause()` on `HeldSpellDissipated`; `Combatants()` is the caster. `DissipationCause.Valid()` names the two, and `DissipateHeldSpell` returns `DissipateHeldSpellInvalidCause` (result value `dissipate_invalid_cause`, class `invalid`, no events) for any other cause, checked before the held spell.
+- **Untrusted ids.** The section 6 results have no invalid variant, so `ReadySpell` does not validate the ids it is given and returns them; `NewReadiedAction` (HoldsSpell) rejects an invalid spell id, caster or a trigger other than the action's. A nil `HeldSpellInput` is `HoldsNoSpell` and a nil `CastingTime` is not an action; nothing panics.
+- **Reaction.** `ReleaseHeldSpell` reads the reactor from `ReactionTaken.Combatants()` (the reactor for a readied action) and the trigger from its `ReadiedActionRecord`; the zero `ReactionTaken` is not a readied Reaction.
+- **Boundary.** A held spell released or dissipated on the turn it was readied: the functions hold no state, so the same `HeldSpellInput` can be released and dissipated; the host owns the order (tested with the tracker's `ReactionTaken` and `ReadiedActionExpired`).
+- **Mutation testing:** mutation skipped at user request; no mutation score.
+- **P10 (library limits)** is open: no collection grows with input here (each result holds one event), so no cap test is held back.
+
+Not yet implemented: none. The three use cases `ready_combatant_spell`, `release_combatant_spell` and `dissipate_combatant_spell` with their telemetry and section 7 `result` values were built by `combat-action-resolution.md` step 10b (`combat/held_spell_usecase.go`, tested in `combat/wired_usecase_test.go`). The change request RA-1 (a Concentration subject for a held spell) stays with `spellcasting.md`; no requirement of this spec waits on it, and it is not a D id.
 
 Split from `magical-effects.md` (its FR-130 to FR-136, FR-138 to FR-142, withdrawn
 there in favour of FR-001 to FR-012 here). Rank 26 (`shared-types-and-ownership.md`
@@ -50,7 +61,7 @@ or `HoldsNoSpell`, no null); until then the host holds it beside the
 
 | SRD term | Type | Notes |
 |---|---|---|
-| ready a spell | `ReadiedSpell{Spell, Caster, Trigger}`, `HeldSpellInput` (`HoldsSpell`, `HoldsNoSpell`), `ConcentrationHold{Spell SpellID}`, `ReleaseHoldRequest{Spell SpellID}`, `DissipationCause` (`ConcentrationBroken`, `ReadyElapsed`) | The Ready action is `initiative-and-actions.md`'s. |
+| ready a spell | `ReadiedSpell{Spell, Caster, Trigger}`, `HeldSpellInput` (`HoldsSpell`, `HoldsNoSpell`), `ConcentrationHold{Spell SpellID}`, `ReleaseHoldRequest{Spell SpellID}`, `DissipationCause` (`DissipationConcentrationBroken`, `DissipationReadyElapsed`) | The Ready action is `initiative-and-actions.md`'s. |
 | casting time | `CastingTime` from `content-spells.md` FR-026 | Reused. |
 
 ## 4. Requirements
@@ -68,9 +79,9 @@ Ids are stable.
 | FR-007 | `ReleaseHeldSpell(held HeldSpellInput, reaction ReactionTaken)` MUST check in this order: (1) a `reaction` that is not the `ReactionTaken` of a `ReadiedActionReaction` returns `ReleaseHeldSpellNotAReadiedReaction` (FR-009); (2) `HoldsNoSpell` returns `ReleaseHeldSpellNoHeldSpell` (FR-008); (3) a `HoldsSpell(spell)` whose `Spell.Caster` differs from `reaction.Combatant`, or whose `Spell.Trigger` differs from the reaction's `ReadyTriggerID`, returns `ReleaseHeldSpellReactionMismatch` and no events; (4) otherwise it MUST return `ReleaseHeldSpellApplied` with one `HeldSpellReleased` event and a `ReleaseHoldRequest{Spell SpellID}`. The caller ends the hold with `BreakConcentration` (`Ended`, `casting-and-concentration.md` FR-077) and, if the spell requires Concentration, begins it as `casting-and-concentration.md` FR-075 describes. A matching reaction means equal caster and trigger ids (`initiative-and-actions.md` FR-072). | SRD 5.2.1, "Ready [Action]" ("which you release with your Reaction when the trigger occurs"), p. 187; "Concentration", p. 179 | happy |
 | FR-008 | `ReleaseHeldSpell` given `HoldsNoSpell` and a readied-action `ReactionTaken` MUST return `ReleaseHeldSpellNoHeldSpell` and no events. | `doc/rules/testing.md` §4 (state errors) | unhappy (state error) |
 | FR-009 | A held spell MUST be released only with the caster's Reaction: `ReleaseHeldSpell` takes the `ReactionTaken` event as a required parameter. A `ReactionTaken` of another kind (an Opportunity Attack, a `FeatureReaction`) MUST return `ReleaseHeldSpellNotAReadiedReaction` and no events. This spec spends no Reaction itself. | SRD 5.2.1, "Ready [Action]" ("which you release with your Reaction when the trigger occurs"), p. 187 | unhappy (rule interaction) |
-| FR-010 | `DissipateHeldSpell(held HeldSpellInput, cause DissipationCause)` with `HoldsSpell` and cause `ConcentrationBroken` (the host saw `spellcasting.md`'s `ConcentrationEnded` for the hold) MUST return `DissipateHeldSpellApplied` with one `HeldSpellDissipated` event: the spell takes no effect and no resource is refunded. | SRD 5.2.1, "Ready [Action]" ("If your Concentration is broken, the spell dissipates without taking effect"), p. 187 | unhappy (state error) |
-| FR-011 | `DissipateHeldSpell` with `HoldsSpell` and cause `ReadyElapsed` (the host saw `ReadiedActionExpired`, `initiative-and-actions.md` FR-038, for a readied action holding a spell) MUST behave as FR-010; the caller ends the hold with `BreakConcentration` (`Ended`). `HoldsNoSpell` with either cause MUST return `DissipateHeldSpellNoHeldSpell` and no events. | SRD 5.2.1, "Ready [Action]" ("maintain up to the start of your next turn"), p. 187; `initiative-and-actions.md` FR-038 | unhappy (state error) |
-| FR-012 | A second held spell MUST be handled thus: `initiative-and-actions.md` FR-056 refuses a second Ready (`ActionAlreadyTaken`) and FR-038 expires the first at the start of the caster's next turn, so two holds overlap only if the host skipped FR-011; then the first hold's Concentration ends with the reason `AnotherEffect` (`casting-and-concentration.md` FR-119) and the host calls `DissipateHeldSpell` (`ConcentrationBroken`) for the first. | SRD 5.2.1, "Concentration", p. 179; "Ready [Action]", p. 187 | unhappy (rule interaction) |
+| FR-010 | `DissipateHeldSpell(held HeldSpellInput, cause DissipationCause)` with `HoldsSpell` and cause `DissipationConcentrationBroken` (the host saw `spellcasting.md`'s `ConcentrationEnded` for the hold) MUST return `DissipateHeldSpellApplied` with one `HeldSpellDissipated` event: the spell takes no effect and no resource is refunded. | SRD 5.2.1, "Ready [Action]" ("If your Concentration is broken, the spell dissipates without taking effect"), p. 187 | unhappy (state error) |
+| FR-011 | `DissipateHeldSpell` with `HoldsSpell` and cause `DissipationReadyElapsed` (the host saw `ReadiedActionExpired`, `initiative-and-actions.md` FR-038, for a readied action holding a spell) MUST behave as FR-010; the caller ends the hold with `BreakConcentration` (`Ended`). `HoldsNoSpell` with either cause MUST return `DissipateHeldSpellNoHeldSpell` and no events. | SRD 5.2.1, "Ready [Action]" ("maintain up to the start of your next turn"), p. 187; `initiative-and-actions.md` FR-038 | unhappy (state error) |
+| FR-012 | A second held spell MUST be handled thus: `initiative-and-actions.md` FR-056 refuses a second Ready (`ActionAlreadyTaken`) and FR-038 expires the first at the start of the caster's next turn, so two holds overlap only if the host skipped FR-011; then the first hold's Concentration ends with the reason `AnotherEffect` (`casting-and-concentration.md` FR-119) and the host calls `DissipateHeldSpell` (`DissipationConcentrationBroken`) for the first. | SRD 5.2.1, "Concentration", p. 179; "Ready [Action]", p. 187 | unhappy (rule interaction) |
 | FR-013 | Layering, events and telemetry follow `combat-foundations.md` FR-015 to FR-019, FR-026 and FR-029 to FR-035: types live in package `combat`, are pure and import only the kernel packages and the published API of upstream contexts (`content`: `SpellID`, `CastingTime`); no import of `character`'s concentration rules. Events form a closed `HeldSpellEvent` interface (unexported marker method; variants `SpellHeld`, `HeldSpellReleased`, `HeldSpellDissipated`) whose variants also satisfy `CombatEvent`: `SpellHeld` (`spell_held`), `HeldSpellReleased` (`held_spell_released`), `HeldSpellDissipated` (`held_spell_dissipated`), each with `Combatants()` the caster; the use cases are `ready_combatant_spell`, `release_combatant_spell`, `dissipate_combatant_spell`. | `doc/rules/architecture.md` §1, §2, §9; `shared-types-and-ownership.md` FR-019, FR-044 | unhappy (forbidden edge) |
 
 ## 5. Model
@@ -89,19 +100,19 @@ Ids are stable.
 Signatures (package `combat`, pure, no `context.Context`, no error return):
 
 ```go
-func ReadySpell(caster CombatantID, trigger ReadyTriggerID, spell SpellID, castingTime CastingTime) ReadySpellResult
-func ReleaseHeldSpell(held HeldSpellInput, reaction ReactionTaken) ReleaseHeldSpellResult
-func DissipateHeldSpell(held HeldSpellInput, cause DissipationCause) DissipateHeldSpellResult
+func ReadySpell(caster CombatantID, trigger ReadyTriggerID, spell SpellID, castingTime CastingTime) ReadyCombatantSpellResult
+func ReleaseHeldSpell(held HeldSpellInput, reaction ReactionTaken) ReleaseCombatantSpellResult
+func DissipateHeldSpell(held HeldSpellInput, cause DissipationCause) DissipateCombatantSpellResult
 ```
 
 Result interfaces are closed (unexported marker method):
 
-- `ReadySpellResult`: `ReadySpellApplied{Spell ReadiedSpell, Hold ConcentrationHold, Events []HeldSpellEvent}`,
+- `ReadyCombatantSpellResult`: `ReadySpellApplied{Spell ReadiedSpell, Hold ConcentrationHold, Events []HeldSpellEvent}`,
   `ReadySpellNotAnAction{CastingTime CastingTime}`.
-- `ReleaseHeldSpellResult`: `ReleaseHeldSpellApplied{Release ReleaseHoldRequest, Events []HeldSpellEvent}`,
+- `ReleaseCombatantSpellResult`: `ReleaseHeldSpellApplied{Release ReleaseHoldRequest, Events []HeldSpellEvent}`,
   `ReleaseHeldSpellNoHeldSpell`, `ReleaseHeldSpellNotAReadiedReaction`,
   `ReleaseHeldSpellReactionMismatch`.
-- `DissipateHeldSpellResult`: `DissipateHeldSpellApplied{Events []HeldSpellEvent}`,
+- `DissipateCombatantSpellResult`: `DissipateHeldSpellApplied{Events []HeldSpellEvent}`,
   `DissipateHeldSpellNoHeldSpell`.
 
 Refusal variants carry no events.
@@ -125,6 +136,7 @@ use cases of the `combat-action-resolution.md` amendment record through `CombatT
 | | `ReleaseHeldSpellReactionMismatch` | `release_reaction_mismatch` | refused |
 | `dissipate_combatant_spell` | `DissipateHeldSpellApplied` | `completed` | applied |
 | | `DissipateHeldSpellNoHeldSpell` | `dissipate_no_held_spell` | refused |
+| | `DissipateHeldSpellInvalidCause` | `dissipate_invalid_cause` | invalid |
 
 Seven questions: (1) the host calls in the wrong state or passes a wrong casting
 time (`refused`). (2) By `srd5e.combat.operations` once those use cases land. (3) Results
