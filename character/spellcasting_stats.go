@@ -94,3 +94,19 @@ func (s SpellcastingStats) AttackBonus() SpellAttackBonus {
 func (s SpellcastingStats) AttackRollModifiers() d20.RollModifiers {
 	return d20.NewRollModifiers(modifier.New(s.mod.Value())).WithProficiencyBonus(modifier.New(s.prof.Value()))
 }
+
+// NewSpellSaveDC returns the printed spell save DC n exactly as given, with no
+// ability or Proficiency Bonus added. A caller outside this context uses it for a
+// DC printed in a stat block, which the player formula does not give. It returns an
+// error matching srderr.ErrInvalidInput for n below 1 (the zero SpellSaveDC means
+// no DC). It never panics.
+func NewSpellSaveDC(n int) (SpellSaveDC, error) {
+	if n < 1 {
+		return SpellSaveDC{}, invalidInput("spell save DC: below 1")
+	}
+	return dcOf(n), nil
+}
+
+// NewSpellAttackBonus returns the printed spell attack bonus n exactly as given,
+// of any size and sign. It never fails and never panics.
+func NewSpellAttackBonus(n int) SpellAttackBonus { return SpellAttackBonus{n: n} }

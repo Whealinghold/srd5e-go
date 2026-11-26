@@ -253,7 +253,7 @@ func TestCastingSignalNamesArePinnedAndCatalogued(t *testing.T) {
 		{character.ValueResultNone, "none"},
 		{character.ValueResultCastingFailed, "casting_failed"},
 		{character.CastSourceSlot.String(), "slot"}, {character.CastSourceCantrip.String(), "cantrip"}, {character.CastSourceRitual.String(), "ritual"},
-		{character.CastSourceFeatureGranted.String(), "feature_granted"}, {character.CastSourceScroll.String(), "scroll"}, {character.CastSourceDuplicated.String(), "duplicated"},
+		{character.CastSourceFeatureGranted.String(), "feature_granted"}, {character.CastSourceScroll.String(), "scroll"}, {character.CastSourceDuplicated.String(), "duplicated"}, {character.CastSourceMonster.String(), "monster"},
 		{character.BreakIncapacitated.String(), "incapacitated"}, {character.BreakDead.String(), "dead"}, {character.BreakEnded.String(), "ended"},
 		{character.BreakFailedSave.String(), "failed_save"}, {character.BreakAnotherEffect.String(), "another_effect"},
 	}

@@ -37,7 +37,7 @@ Items (p. 193; `magic-item-rules.md` `CurseStatus`, FR-057 to FR-059, FR-071); C
 `content-species-backgrounds-feats.md` FR-072, FR-073, shared-types-and-ownership.md FR-045; this spec's Q-20); what the spells do (Bestow Curse, Remove Curse,
 Greater Restoration, Dispel Evil and Good, Protection from Evil and Good, Heal, Lesser Restoration, Contagion: `content-spells.md`, `spellcasting.md`,
 `RemoveCurse` in `magical-effects.md`; this spec receives only the fact that such magic was applied); curses with neither a specified time nor "until
-dispelled" (no benchmark, FR-004); other contagions and altered DCs (p. 194 "Feel free to alter" is GM advice, not a `ToolboxRuleOptions` field,
+dispelled" (no benchmark, FR-004); other contagions and altered DCs (p. 194 "Feel free to alter" is GM advice, not a `toolbox.RuleOptions` field,
 shared-types-and-ownership.md FR-045; a host-authored contagion has no rules here, Q-3; only Rest and Recuperation, FR-031 to FR-036, is generic);
 time tracking, the Long Rest, Exhaustion, Blinded and Incapacitated (`rests-and-hit-dice.md`, `conditions.md`; death at level 6 is the host's,
 toolbox-hazard-effects.md FR-046); poison (a separate toolbox spec). Nothing core to these two pages is missing from the PDF.

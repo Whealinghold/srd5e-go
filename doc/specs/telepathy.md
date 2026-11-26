@@ -2,16 +2,25 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `conditions.md` |
 | Consumed by | `combat-action-resolution.md` (amendment RA-1: the `ChangeTelepathicContact` use case) |
 
+**Implementation status.** Implemented in package `combat` as pure, silent domain code, with no use case (the use case `ChangeTelepathicContact` is recorded by `combat-action-resolution.md`, RA-1): every id FR-001 to FR-023 is T and has a test, plus FR-024 added while implementing. Files: `telepathy.go` (`TelepathyCapability`, `ReplyPolicy`, `ContactedUnderstanding`, `TelepathicContactRejection`, `BreakCause`, `TelepathicContactState`, `ErrTelepathyRange`), `telepathy_event.go` (`TelepathyEvent` and its three members), `telepathy_rules.go` (the five functions, the `InitiateTelepathicContactCommand` and the five sealed results); tests are named after them, `internal/archtest/combat_telepathy_test.go` enforces the silent domain, the no-action name scan (FR-012), the three-member event family and the export list. Decisions made while implementing:
+
+- **Go names.** `ContactedUnderstanding` members are `ContactedUnderstandingALanguage`, `ContactedUnderstandingTelepathic` and `ContactedUnderstandingNeither` (a bare `IsTelepathic` would clash with the method); `TelepathicContactRejection` members are `TelepathicContactRejection<Reason>`; `ReplyPolicy` and `BreakCause` members keep the names of section 3. `NotTelepathic` and `NoContact` are the zero values, not package variables (A4). The Incapacitated query is `ConditionEffects.IsIncapacitated(ConditionSet)`, not a `ConditionSet` method.
+- **Zero values.** `ContactedUnderstanding` zero is `ContactedUnderstandingNeither` (refuses contact), so a forgotten field cannot make a contact.
+- **FR-024 (added).** `InitiateTelepathicContact` takes an `InitiateTelepathicContactCommand` (state, both ids, capability, both `ConditionSet`s, distance, understanding, policy). A malformed command (a blank or equal id, a negative distance, an undefined policy, or a state held by another telepath) returns `InitiateTelepathicContactRejected` with `TelepathicContactRejectionInvalidCommand`, checked before FR-011's five reasons; its result name is `contact_invalid` and its class is `invalid` (section 7). `InContact` with such values returns `NoContact`.
+- **Edges the spec left open.** `EndTelepathicContact` by a creature that is not the telepath of the state is `EndTelepathicContactNoContact`. `ReportTelepathIncapacitated` takes the creature's `ConditionSet` and is `Unchanged` when Incapacitated is not effective. `ReportTelepathDistance` with a negative distance is `Unchanged`. A reply by the telepath is `TelepathicReplyNotContacted`.
+
+Not yet implemented: none of the T ids; no D ids. The collections here are two events at most, so plan P10 needs no cap and no cap test here. Mutation testing: mutation skipped at user request; no mutation score. Statement coverage of `combat` 98 percent.
+
 Split from `magical-effects.md` (its FR-071 to FR-090, withdrawn there in favour of
 FR-001 to FR-020 here). Rank 23 (`shared-types-and-ownership.md` 4.11): right of
 `conditions` (22), so it imports only `combat-foundations.md` (`CombatantID`,
-`combat.Event`) and `conditions.md` (`ConditionSet`, `ConditionSet.IsIncapacitated`). It has no
+`combat.Event`) and `conditions.md` (`ConditionSet`, `ConditionEffects.IsIncapacitated`). It has no
 port and returns no `*srderr.PortError`, so `errors-and-results.md` and
 `observability-ports.md` are not dependencies. It supersedes no numbered
 requirement of another spec.
@@ -41,7 +50,7 @@ FR-029 to FR-035, section 7).
 | SRD term | Type | Notes |
 |---|---|---|
 | Telepathy | `TelepathyCapability` (`NewTelepathic(rangeFeet) (TelepathyCapability, error)`, `MustTelepathic`; the zero value is `NotTelepathic`), `ReplyPolicy` (typed enum `ContactedMayReply` = zero value and default, `ContactedMayNotReply`), `TelepathicContactState` (comparable struct with unexported fields; the zero value is `NoContact`; `InContact(telepath, contacted, rangeFeet, replyPolicy)` builds a contact), `ContactedUnderstanding` (typed enum `UnderstandsALanguage`, `IsTelepathic`, `UnderstandsNeither`), `TelepathicContactRejection` (typed enum with `String()`), `BreakCause` (typed enum `BreakCauseIncapacitated`, `BreakCauseContactedLeftRange`, `BreakCauseTelepathContactedAnother`) | At most one contact per telepath. |
-| Incapacitated | `ConditionSet.IsIncapacitated()` from `conditions.md` | Reused. |
+| Incapacitated | `ConditionEffects.IsIncapacitated(ConditionSet)` from `conditions.md` | Reused. |
 
 Results are operation-prefixed (`shared-types-and-ownership.md` FR-017):
 `InitiateTelepathicContactMade`, `...Rejected(TelepathicContactRejection)`,
@@ -80,6 +89,7 @@ Ids are stable. Case-table rows are one test each, citing the FR in the row.
 | FR-021 | Layering, events and telemetry follow `combat-foundations.md` FR-015 to FR-019, FR-026 and FR-029 to FR-035: types live in package `combat`, in files named `telepathy*.go` (no use-case file), are pure, import only the kernel packages and the published language of `conditions.md`; events form a closed variant family `TelepathyEvent` (an interface embedding `combat.Event` with an unexported marker method, documented with its three implementers) with unique constant `Kind()` values and `Combatants()` as in table 4.2; the RA-1 use case is `ChangeTelepathicContact` (span suffix `change_telepathic_contact`). | `doc/rules/architecture.md` §1, §2, §9; `shared-types-and-ownership.md` FR-019, FR-044 | unhappy (forbidden edge) |
 | FR-022 | Every operation MUST NOT alter its inputs, MUST return defensive copies of slices and MUST give equal results for equal inputs. | `doc/rules/testing.md` §4 (immutability, determinism) | unhappy (immutability) |
 | FR-023 | `InitiateTelepathicContact` MUST take an optional `ReplyPolicy` (default `ContactedMayReply`) stored in `InContact`; with `ContactedMayNotReply`, `TelepathicReply` by the contacted creature MUST return `TelepathicReplyNotPermitted` (result name `contact_reply_not_permitted`, refused). The policy changes nothing else: initiation, ending and breaking are unaffected, and the policy takes part in `InContact` equality. The library does not read qualifier text: the host maps it (for example the Otyugh's "doesn't allow the receiving creature to respond telepathically") to the policy. | SRD 5.2.1, "Telepathy", p. 190 (default rule); "Otyugh", p. 313 (monster exception) | unhappy (rule interaction) |
+| FR-024 | `InitiateTelepathicContact` MUST reject a malformed command (a blank or equal `CombatantID`, a negative distance, an undefined `ReplyPolicy`, or a state held by another telepath) with reason `InvalidCommand`, before any FR-011 reason, and `InContact` with a blank or equal id, a range below 1 or an undefined policy MUST return `NoContact`; neither panics. | `doc/rules/architecture.md` §6 (untrusted input); added while implementing | unhappy (invalid input) |
 
 #### Case table 4.1: initiation (FR-002 to FR-011)
 
@@ -112,7 +122,7 @@ Baseline: initiator `NewTelepathic(60)`, distance 30, neither Incapacitated, con
 ## 5. Model
 
 - **Referenced, not defined here:** `CombatantID`, `combat.Event`
-  (`combat-foundations.md`); `ConditionSet`, `ConditionSet.IsIncapacitated` (`conditions.md`).
+  (`combat-foundations.md`); `ConditionSet`, `ConditionEffects.IsIncapacitated` (`conditions.md`).
 - **Value objects:** the types of section 3. **Events:** the closed variant family
   `TelepathyEvent` (table 4.2). **Domain service** (stateless):
   the package functions `InitiateTelepathicContact` (with `ReplyPolicy`), `EndTelepathicContact`, `ReportTelepathIncapacitated`, `ReportTelepathDistance`, `TelepathicReply`.
@@ -139,6 +149,7 @@ through `CombatTelemetry`. Classification (`combat-foundations.md` FR-030, FR-03
 | `TelepathicReplyNotPermitted` | `contact_reply_not_permitted` | refused |
 | `TelepathicReplyNotContacted` | `contact_reply_not_contacted` | refused |
 | `EndTelepathicContactNoContact`, `TelepathicReplyNoContact` | `contact_none` | refused |
+| `InitiateTelepathicContactRejected(InvalidCommand)` | `contact_invalid` | invalid |
 
 Seven questions: (1) the host passes a wrong distance or condition set, or calls in
 the wrong state (`refused`); a range below 1 is rejected by `NewTelepathic`. (2) By
@@ -154,6 +165,7 @@ Unit tests sit beside the code (`combat/telepathy*_test.go`, package `combat_tes
 | Id | Level | Notes |
 |---|---|---|
 | FR-001 to FR-011 | unit | Table 4.1, one test per row, with a real `ConditionSet` for Incapacitated |
+| FR-024 | unit, fuzz | Table 4.1 rows for each malformed field; `FuzzInitiateTelepathicContact`, `FuzzNewTelepathic` |
 | FR-012 | unit, architecture | Initiate and end results carry exactly their listed events; the files name no `ActionChoice`, `StandardAction` or `ReactionTaken` |
 | FR-013 to FR-020, FR-023 | unit | End, break by Incapacitated and by distance (at range and one beyond), different creature, repeated contact, reply, reply by a non-contacted creature, reply under each `ReplyPolicy` (`ContactedMayNotReply` refuses only the reply) |
 | FR-021 | architecture, unit | Import direction; table 4.2 kinds unique |

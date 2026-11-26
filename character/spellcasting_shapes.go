@@ -100,11 +100,17 @@ const (
 	CastSourceScroll
 	// CastSourceDuplicated: a spell that Wish duplicates; never in a CastingInProgress.
 	CastSourceDuplicated
+	// CastSourceMonster: a spell a monster casts through a Spellcasting trait. Only a caller outside this context
+	// builds a report with it (CastSpell never derives it) and a CastingInProgress never holds it.
+	CastSourceMonster
 )
+
+// Valid reports whether s is one of the defined cast sources.
+func (s CastSource) Valid() bool { return s >= CastSourceSlot && s <= CastSourceMonster }
 
 // String returns the snake_case name or "unknown".
 func (s CastSource) String() string {
-	names := [...]string{"slot", "cantrip", "ritual", "feature_granted", "scroll", "duplicated"}
+	names := [...]string{"slot", "cantrip", "ritual", "feature_granted", "scroll", "duplicated", "monster"}
 	if s < CastSourceSlot || int(s) > len(names) {
 		return "unknown"
 	}
@@ -149,11 +155,12 @@ type CastingInProgress struct {
 // NewCastingInProgress returns the casting. It returns an error matching
 // srderr.ErrInvalidInput for an invalid spell id, an invalid class (the zero
 // class is allowed only for CastSourceScroll and CastSourceFeatureGranted), an
-// invalid source, CastSourceDuplicated or fewer than 1 minute. A nil slot or a zero mode means
+// invalid source, CastSourceDuplicated, CastSourceMonster or fewer than 1 minute. A nil slot or a zero mode means
 // none was chosen. It never panics.
 func NewCastingInProgress(spell content.SpellID, source CastSource, class SpellcastingClass, mode content.CastingTimeMode, slot SpellSlotChoice, totalMinutes int) (CastingInProgress, error) {
+	// castingSource is an allow-list, so reordering the constants cannot admit a source that has no casting time.
 	classless := class == 0 && (source == CastSourceScroll || source == CastSourceFeatureGranted)
-	if !spell.Valid() || (!class.Valid() && !classless) || source < CastSourceSlot || source >= CastSourceDuplicated || totalMinutes < 1 {
+	if !spell.Valid() || (!class.Valid() && !classless) || !castingSource(source) || totalMinutes < 1 {
 		return CastingInProgress{}, invalidInput("casting in progress: invalid spell, class, source or minutes")
 	}
 	return CastingInProgress{spell: spell, source: source, class: class, mode: mode, slot: slot, minutes: totalMinutes}, nil
@@ -179,3 +186,15 @@ func (c CastingInProgress) Slot() SpellSlotChoice { return c.slot }
 
 // TotalMinutes returns the whole minutes the casting takes, at least 1.
 func (c CastingInProgress) TotalMinutes() int { return c.minutes }
+
+// castingSource reports whether s is a source whose casting takes time: not
+// Duplicated or Monster, and not an undefined value.
+func castingSource(s CastSource) bool {
+	switch s {
+	case CastSourceSlot, CastSourceCantrip, CastSourceRitual, CastSourceFeatureGranted, CastSourceScroll:
+		return true
+	case CastSourceDuplicated, CastSourceMonster:
+		return false
+	}
+	return false
+}

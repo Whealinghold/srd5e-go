@@ -98,7 +98,7 @@ the intra-context order `derived-stats` ← `character-aggregate` ← the rest �
 | 0 | Groundwork: docs, policy, `character/doc.go` | n/a | the first production file must already be inside the allow-list |
 | 1 | equipment-rules | 9 | pure services; `derived-stats` calls Armor Class maths |
 | 2 | derived-stats | 10 | `Level`, `ClassLevels`, `ProficiencyBonus`, `HitPointMaximum`, `IsBloodied`; the aggregate stores these |
-| 3 | character-aggregate | 11 | `Character`, events, `FeatureStates`, `CharacterRuleOptions`; root of everything below |
+| 3 | character-aggregate | 11 | `Character`, events, `FeatureStates`, `character.RuleOptions`; root of everything below |
 | 4a to 4e | rests-and-hit-dice, heroic-inspiration, weapon-properties-and-mastery, social-interaction, exploration | 12 | independent of one another |
 | 5a, 5b | spellcasting, magic-item-rules | 13 | independent of one another |
 | 6a to 6d | level-advancement-and-multiclassing, casting-and-concentration, magic-item-effects, tool-proficiency-and-crafting | 14 | independent of one another |
@@ -215,7 +215,7 @@ review); `just check` green.
 
 Spec `character-aggregate.md`: `Character`, `CharacterID`, `ExperiencePoints`,
 `HeroicInspiration` (enum slot), `FeatureStates` and `FeatureStateKey` (FR-022),
-`ClassCreationChoices` (FR-024), `CharacterRuleOptions` (rule-options FR-029),
+`ClassCreationChoices` (FR-024), `character.RuleOptions` (rule-options FR-029),
 the seven events and `character.Event`, use cases `LevelUpCharacter`,
 `AwardExperience`, `ChangeAbilityScore`, and the shared signals
 `srd5e.character.feature_used`, `.duration`, `.errors` that every class reuses
@@ -319,7 +319,7 @@ counted by 6b). Monitor `rejection` reasons.
 
 **Tests:** application tests with `FakeSource` carrying a species, background and
 class from the bundle; roll-based rows with `dicetest` (4d6 drop-lowest at min,
-max, ties); invalid method per `CharacterRuleOptions`; missing content per kind.
+max, ties); invalid method per `character.RuleOptions`; missing content per kind.
 **Observability:** `CreateCharacter`, `RollAbilityScores`, `RollLanguages`
 instrumented; monitor creation `outcome=failure` by variant (spikes after a content
 change point at bad data). 8b silent.

@@ -524,3 +524,33 @@ func TestCharacterPolicy(t *testing.T) {
 		{"imports a test package", ch("example.com/m/dice/dicetest"), archtest.RuleImport},
 	})
 }
+
+// Requirement: architecture.md section 1 (combat and combat/combattest rows); plan-phase-4.md step 0.
+// Path: combat may import character, content, d20 and kernel but not toolbox or a *test package; combattest imports combat and srderr only.
+func TestCombatPolicy(t *testing.T) {
+	t.Parallel()
+	pkgs := func(dir, imp string) map[string]string {
+		name := dir[strings.LastIndex(dir, "/")+1:]
+		return map[string]string{
+			"combat/doc.go":            "// Package combat is a fixture.\npackage combat\n",
+			"toolbox/doc.go":           "// Package toolbox is a fixture.\npackage toolbox\n",
+			"character/doc.go":         "// Package character is a fixture.\npackage character\n",
+			"content/doc.go":           "// Package content is a fixture.\npackage content\n",
+			"d20/doc.go":               "// Package d20 is a fixture.\npackage d20\n",
+			"dice/doc.go":              "// Package dice is a fixture.\npackage dice\n",
+			"dice/dicetest/d.go":       "// Package dicetest is a fixture.\npackage dicetest\n",
+			"combat/combattest/doc.go": "// Package combattest is a fixture.\npackage combattest\n",
+			dir + "/x.go":              "package " + name + "\n\nimport _ \"" + imp + "\"\n",
+		}
+	}
+	runGuardCases(t, []guardCase{
+		{"combat imports toolbox", pkgs("combat", "example.com/m/toolbox"), archtest.RuleImport},
+		{"combat imports character", pkgs("combat", "example.com/m/character"), ""},
+		{"combat imports content", pkgs("combat", "example.com/m/content"), ""},
+		{"combat imports d20", pkgs("combat", "example.com/m/d20"), ""},
+		{"combat imports a test package", pkgs("combat", "example.com/m/dice/dicetest"), archtest.RuleImport},
+		{"combattest imports combat", pkgs("combat/combattest", "example.com/m/combat"), ""},
+		{"combattest imports character", pkgs("combat/combattest", "example.com/m/character"), archtest.RuleImport},
+		{"combattest imports dice", pkgs("combat/combattest", "example.com/m/dice"), archtest.RuleImport},
+	})
+}

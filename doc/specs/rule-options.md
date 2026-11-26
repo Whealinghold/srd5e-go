@@ -22,9 +22,9 @@ options are owned by that context's spec and ship in its phase
 
 | Options object | Owner spec | Context and type phase |
 |---|---|---|
-| `CharacterRuleOptions` | `character-aggregate.md` (section 4.10) | `character`, 3 |
-| `CombatRuleOptions` | `combat-foundations.md` (section 4.6) | `combat`, 4 |
-| `ToolboxRuleOptions` | `toolbox-hazard-effects.md` (section 4.9) | `toolbox`, 5 |
+| `character.RuleOptions` | `character-aggregate.md` (section 4.10) | `character`, 3 |
+| `combat.RuleOptions` | `combat-foundations.md` (section 4.6) | `combat`, 4 |
+| `toolbox.RuleOptions` | `toolbox-hazard-effects.md` (section 4.9) | `toolbox`, 5 |
 
 Finding from reading the whole PDF: SRD 5.2.1 contains no section titled
 "optional rules" or "variant rules". It does, however, offer alternatives to
@@ -43,11 +43,11 @@ The options, each verified in the PDF:
 
 | Option | Where the SRD offers it | Options object | Consumer (spec and FR that reads it) |
 |---|---|---|---|
-| Ability score generation methods the table permits | "Generate Your Scores", p. 21 | `CharacterRuleOptions` | `character-creation.md` FR-054 |
-| Starting level | "Starting at Higher Levels", p. 24 | `CharacterRuleOptions` | `character-creation.md` FR-071 |
-| Bonus Feats at Level 20 | "Bonus Feats at Level 20", p. 24 | `CharacterRuleOptions` | `feats-behaviour.md` (applies feats). The consuming FR is not yet named. Deferred, FR-029. |
-| Playing on a Grid | "Playing on a Grid", p. 13 | `CombatRuleOptions` | `grid-positions-and-movement.md` FR-001 (reads `CombatRuleOptions.Grid`; `initiative-and-actions.md` stays in feet). |
-| Fear Effects riders (Dash each turn, Advantage against the creature, one kind of action per turn) and half damage on a successful Mental Stress save | "Fear Effects", "Mental Stress Effects", p. 196 | `ToolboxRuleOptions` | `toolbox-fear-and-mental-stress.md` FR-027, FR-028 (riders), FR-040, FR-043, FR-051 (Mental Stress), FR-029 (independence), FR-100 (both commands carry one `ToolboxRuleOptions`). |
+| Ability score generation methods the table permits | "Generate Your Scores", p. 21 | `character.RuleOptions` | `character-creation.md` FR-054 |
+| Starting level | "Starting at Higher Levels", p. 24 | `character.RuleOptions` | `character-creation.md` FR-071 |
+| Bonus Feats at Level 20 | "Bonus Feats at Level 20", p. 24 | `character.RuleOptions` | `feats-behaviour.md` (applies feats). The consuming FR is not yet named. Deferred, FR-029. |
+| Playing on a Grid | "Playing on a Grid", p. 13 | `combat.RuleOptions` | `grid-positions-and-movement.md` FR-001 (reads `combat.RuleOptions.Grid`; `initiative-and-actions.md` stays in feet). |
+| Fear Effects riders (Dash each turn, Advantage against the creature, one kind of action per turn) and half damage on a successful Mental Stress save | "Fear Effects", "Mental Stress Effects", p. 196 | `toolbox.RuleOptions` | `toolbox-fear-and-mental-stress.md` FR-027, FR-028 (riders), FR-040, FR-043, FR-051 (Mental Stress), FR-029 (independence), FR-100 (both commands carry one `toolbox.RuleOptions`). |
 
 The consumers are not dependencies of this spec. The types, defaults,
 validation and small rule maths of an option (bonus feats earned from XP; Speed
@@ -105,7 +105,7 @@ The mechanics of each toolbox rider stay in
   (`character-aggregate.md` FR-004).
 - Movement costs on a grid (entering squares, Difficult Terrain, corners) and
   range counting (p. 13): owned by `grid-positions-and-movement.md`, whose
-  FR-001 consumes `CombatRuleOptions.Grid`; `initiative-and-actions.md`
+  FR-001 consumes `combat.RuleOptions.Grid`; `initiative-and-actions.md`
   FR-077 keeps per-foot costs.
 - Decoding options from JSON or another external format. A consumer builds the
   value objects directly or through their `NewX` constructors.
@@ -149,8 +149,8 @@ No offset.
 | Term | Meaning here |
 |---|---|
 | Option | A table-wide alternative that SRD 5.2.1 itself offers to the GM or the table, with a page citation. Not an SRD term: the words "variant" and "optional" are not SRD terms for these rules and do not appear in type names. |
-| Options object | One immutable value per context (`CharacterRuleOptions`, `CombatRuleOptions`, `ToolboxRuleOptions`); the package-level concept is `RuleOptions` as named in `doc/rules/architecture.md` §3 and the roadmap. |
-| `standard` | The options object whose every field is the SRD's own baseline; in Go the constructors `StandardCharacterRuleOptions()`, `StandardCombatRuleOptions()` and `StandardToolboxRuleOptions()` return it (the zero value of a field-bearing options struct is not assumed to be the baseline). |
+| Options object | One immutable value per context (`character.RuleOptions`, `combat.RuleOptions`, `toolbox.RuleOptions`); the package-level concept is `RuleOptions` as named in `doc/rules/architecture.md` §3 and the roadmap. |
+| `standard` | The options object whose every field is the SRD's own baseline; in Go the constructors `character.StandardRuleOptions()`, `combat.StandardRuleOptions()` and `toolbox.StandardRuleOptions()` return it (the zero value of a field-bearing options struct is not assumed to be the baseline). |
 
 Type names follow SRD headings where the SRD has one (`doc/rules/architecture.md`
 §3: "Do not invent synonyms"). Names with no SRD source (`NoBonusFeats`,
@@ -160,9 +160,9 @@ Type names follow SRD headings where the SRD has one (`doc/rules/architecture.md
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-023 | Option types (`CharacterRuleOptions`, `CombatRuleOptions`, `ToolboxRuleOptions`, `BonusFeatsAtLevel20` and `PlayingOnAGrid` with their variants, `FearOptions`, `FearRider` and `MentalStressOnSuccess` with its variants (`MentalStressNoDamageOnSuccess`, `MentalStressHalfDamageOnSuccess`; owned by `toolbox-hazard-effects.md` FR-102 to FR-104), and the result types) MUST be immutable: unexported fields, value receivers, no setters, collections copied on construction and on read. The `standard` values and every variant MUST NOT be changeable, and no package-level mutable variable, setter, singleton, `init` function or environment lookup MUST select options. Options reach rules only as a field of a command or state. Every closed variant set is an interface with an unexported marker method and one struct type per variant; the interface doc comment names every variant (`errors-and-results.md` FR-044). The closed variants, `CombatRuleOptions` and `ToolboxRuleOptions` are comparable with `==`; `CharacterRuleOptions` holds a set of methods, so it is compared with its `Equal` method (`character-aggregate.md` FR-116). | architecture.md §3, §10 ("Global rule toggles") | unhappy (immutability, state) |
-| FR-029 | An option type MUST NOT be exported from its package until a consuming spec names the FR that reads it. Until then the type is unexported (lower-case identifier) or does not exist. `CharacterRuleOptions` has consumers (`character-creation.md` FR-054, FR-071). The recorded exception is that exporting it also exports `BonusFeatsAtLevel20` and its variants, which have no consuming FR yet (Q-17 settled: an accepted exception, also recorded in `character-creation.md`); the exception closes when `feats-behaviour.md` names one. `ToolboxRuleOptions` is consumed by `toolbox-fear-and-mental-stress.md` FR-100 (with FR-051 and FR-029), so package `toolbox` exports it. `CombatRuleOptions` is consumed by `grid-positions-and-movement.md` FR-001, so exporting that FR's types also exports it and `PlayingOnAGrid`. | architecture.md §7 ("Export deliberately. Anything exported is a compatibility promise."); §3 (`RuleOptions` names each option the SRD itself presents). A package-design rule. | unhappy (scope) |
-| FR-033 | Option types MUST NOT import or name any type of a downstream context. `CharacterRuleOptions` imports at most kernel packages (`ability`, `modifier`, `srderr`), `content`, and `derived-stats.md` and `character-aggregate.md` types in package `character`; `CombatRuleOptions` imports only package `combat` and the published API of upstream packages; `ToolboxRuleOptions` imports only package `toolbox` and the published API of upstream packages. No type of the `character` or `combat` options imports `toolbox`, and no context depends on `toolbox`. Consumers import these types, never the reverse. | shared-types-and-ownership.md FR-013, FR-014, FR-015, FR-016, FR-045, FR-057 | unhappy (forbidden edge) |
+| FR-023 | Option types (`character.RuleOptions`, `combat.RuleOptions`, `toolbox.RuleOptions`, `BonusFeatsAtLevel20` and `PlayingOnAGrid` with their variants, `FearOptions`, `FearRider` and `MentalStressOnSuccess` with its variants (`MentalStressNoDamageOnSuccess`, `MentalStressHalfDamageOnSuccess`; owned by `toolbox-hazard-effects.md` FR-102 to FR-104), and the result types) MUST be immutable: unexported fields, value receivers, no setters, collections copied on construction and on read. The `standard` values and every variant MUST NOT be changeable, and no package-level mutable variable, setter, singleton, `init` function or environment lookup MUST select options. Options reach rules only as a field of a command or state. Every closed variant set is an interface with an unexported marker method and one struct type per variant; the interface doc comment names every variant (`errors-and-results.md` FR-044). The closed variants, `combat.RuleOptions` and `toolbox.RuleOptions` are comparable with `==`; `character.RuleOptions` holds a set of methods, so it is compared with its `Equal` method (`character-aggregate.md` FR-116). | architecture.md §3, §10 ("Global rule toggles") | unhappy (immutability, state) |
+| FR-029 | An option type MUST NOT be exported from its package until a consuming spec names the FR that reads it. Until then the type is unexported (lower-case identifier) or does not exist. `character.RuleOptions` has consumers (`character-creation.md` FR-054, FR-071). The recorded exception is that exporting it also exports `BonusFeatsAtLevel20` and its variants, which have no consuming FR yet (Q-17 settled: an accepted exception, also recorded in `character-creation.md`); the exception closes when `feats-behaviour.md` names one. `toolbox.RuleOptions` is consumed by `toolbox-fear-and-mental-stress.md` FR-100 (with FR-051 and FR-029), so package `toolbox` exports it. `combat.RuleOptions` is consumed by `grid-positions-and-movement.md` FR-001, so exporting that FR's types also exports it and `PlayingOnAGrid`. | architecture.md §7 ("Export deliberately. Anything exported is a compatibility promise."); §3 (`RuleOptions` names each option the SRD itself presents). A package-design rule. | unhappy (scope) |
+| FR-033 | Option types MUST NOT import or name any type of a downstream context. `character.RuleOptions` imports at most kernel packages (`ability`, `modifier`, `srderr`), `content`, and `derived-stats.md` and `character-aggregate.md` types in package `character`; `combat.RuleOptions` imports only package `combat` and the published API of upstream packages; `toolbox.RuleOptions` imports only package `toolbox` and the published API of upstream packages. No type of the `character` or `combat` options imports `toolbox`, and no context depends on `toolbox`. Consumers import these types, never the reverse. | shared-types-and-ownership.md FR-013, FR-014, FR-015, FR-016, FR-045, FR-057 | unhappy (forbidden edge) |
 | FR-034 | The `character`, `combat` and `toolbox` package doc comments (`doc.go`) MUST each state that an option is a value in the command, never a global setting. | architecture.md §3, §10 ("Global rule toggles") | happy |
 | FR-038 | No option type, function or factory MUST define or call a use case; the consuming use cases read the options as plain input, so shared-types-and-ownership.md FR-044 is met by construction. | shared-types-and-ownership.md FR-044 | unhappy (scope) |
 | FR-039 | Every options object MUST follow one shape: an immutable value with a `Standard...` constructor returning the SRD baseline (every default is the SRD's own, so the standard value yields exactly the SRD rule and a consumer opts into an alternative explicitly, by value, in the command); equality by value (`==` where comparable, otherwise an `Equal` method); `With...` methods (one per field) that return a new value changing only that field, leave the receiver unchanged and apply the constructor's validation; no boolean flag standing in for a named state (alternatives are typed enums or closed interfaces, branched on by a type switch that lists every variant). An options object that can hold an invalid state has a validating constructor `NewX(...) (X, error)` whose error satisfies `errors.Is(err, srderr.ErrInvalidInput)` and, when several things are wrong, is `errors.Join` of typed problems listing every one (errors-and-results.md FR-023, FR-024, FR-035); `MustX` panics with that error and is for test literals only; one that cannot hold an invalid state (every field already a validated value) has a constructor that returns no error. The zero value of an options struct that can be invalid is documented as invalid. | architecture.md §3, §6; errors-and-results.md FR-023, FR-024, FR-035 | happy / unhappy (invalid input) |
@@ -216,10 +216,10 @@ per context)". The kernel packages are reserved for concepts every context needs
 there is one options object per context, owned by that context
 (`shared-types-and-ownership.md` FR-057):
 
-- `CharacterRuleOptions{AbilityScoreMethods, StartingLevel, BonusFeatsAtLevel20}` (a non-empty set of `AbilityScoreGenerationMethod`, an `int`, a `BonusFeatsAtLevel20` variant; unexported fields with accessors of those names)
+- `character.RuleOptions{AbilityScoreMethods, StartingLevel, BonusFeatsAtLevel20}` (a non-empty set of `AbilityScoreGenerationMethod`, an `int`, a `BonusFeatsAtLevel20` variant; unexported fields with accessors of those names)
   in `character-aggregate.md`.
-- `CombatRuleOptions{Grid}` (a `PlayingOnAGrid` variant) in `combat-foundations.md`.
-- `ToolboxRuleOptions{Fear, MentalStressOnSuccess}` (a `FearOptions` and a `MentalStressOnSuccess` variant)
+- `combat.RuleOptions{Grid}` (a `PlayingOnAGrid` variant) in `combat-foundations.md`.
+- `toolbox.RuleOptions{Fear, MentalStressOnSuccess}` (a `FearOptions` and a `MentalStressOnSuccess` variant)
   in `toolbox-hazard-effects.md`. It sits downstream of every other context,
   which is why it is a separate type and not a field of the other two. Its two
   field types are owned by `toolbox-hazard-effects.md` (FR-102 to FR-104), and
@@ -245,14 +245,14 @@ Every default is the SRD's own baseline (FR-039).
 - Use cases in other specs take the relevant options object as a field of
   their command (state in, state out; architecture.md §4). Rules code that
   varies by option uses a type switch listing every variant of the closed option type, or
-  reads the permitted-methods set or a `ToolboxRuleOptions` field. No boolean
+  reads the permitted-methods set or a `toolbox.RuleOptions` field. No boolean
   flags.
 - Exports (FR-029: only once a consuming spec exists for the option): package
-  `character` exports `CharacterRuleOptions`,
+  `character` exports `character.RuleOptions`,
   `AbilityScoreGenerationMethod`, `BonusFeatsAtLevel20` and its variants and
-  the result and problem types; package `combat` exports `CombatRuleOptions`,
+  the result and problem types; package `combat` exports `combat.RuleOptions`,
   `PlayingOnAGrid` and its variants (consumed by `grid-positions-and-movement.md` FR-001); package `toolbox` exports
-  `ToolboxRuleOptions` and the `FearOptions` family (defined by
+  `toolbox.RuleOptions` and the `FearOptions` family (defined by
   `toolbox-hazard-effects.md` FR-102 to FR-104). No facade or re-export package exists; each type is imported from its own package.
   Every exported member has a doc comment starting with its name, and the package
   comment (`doc.go`) lists these as handoff types.
@@ -267,7 +267,7 @@ owner specs are pure domain value objects, which `doc/rules/observability.md`
    level out of range, negative Speed) or forgets non-standard options and gets
    the SRD default. Neither is a package failure.
 2. **How would an operator know?** Invalid values surface at once as an
-   error from the `NewX` constructor satisfying `errors.Is(err, srderr.ErrInvalidInput)` (caller input error), which for `CharacterRuleOptions` is the joined typed problems.
+   error from the `NewX` constructor satisfying `errors.Is(err, srderr.ErrInvalidInput)` (caller input error), which for `character.RuleOptions` is the joined typed problems.
 3. **What would someone need to diagnose it?** The returned error lists the parameter and kind of every
    problem (`errors.Join` of typed problems). Consuming specs decide whether their results echo the options.
 4. **What should be counted or timed?** Nothing; constructing a value is not a unit of work.
@@ -294,8 +294,8 @@ scans over the option files only, in `internal/archtest` (stdlib `go/parser`, no
 
 | Id | Level | Notes |
 |---|---|---|
-| FR-023 | architecture | Scan the files of packages `character`, `combat` and `toolbox` declaring the types listed in FR-023. Confirms every closed variant set is an interface with an unexported marker method whose doc comment names every variant. Banned patterns: an exported field of a struct type that is not documented read-only (options types use unexported fields), a package-level `var` that is not an error sentinel, a setter method (`Set...`), an `init` function. Fails on any match. (`os` and environment lookups are already banned by the architecture checks.) Plus a unit test that two values built from the same inputs of each closed variant (including the `FearOptions`, `FearRider` and `MentalStressOnSuccess` types), of `CombatRuleOptions` and of `ToolboxRuleOptions` are equal with `==`, and `CharacterRuleOptions.Equal` holds for equal method sets given in different order. |
-| FR-029 | architecture | An option type is not exported from its package unless a consuming spec names its FR; the scan lists `CharacterRuleOptions` as consumed (`character-creation.md` FR-054, FR-071) and `ToolboxRuleOptions` as consumed (`toolbox-fear-and-mental-stress.md` FR-100, FR-029, and `toolbox-hazard-effects.md` FR-104), and `CombatRuleOptions` as consumed (`grid-positions-and-movement.md` FR-001), with `BonusFeatsAtLevel20` as the recorded exception, and is updated in the same PR as each further consuming spec. |
+| FR-023 | architecture | Scan the files of packages `character`, `combat` and `toolbox` declaring the types listed in FR-023. Confirms every closed variant set is an interface with an unexported marker method whose doc comment names every variant. Banned patterns: an exported field of a struct type that is not documented read-only (options types use unexported fields), a package-level `var` that is not an error sentinel, a setter method (`Set...`), an `init` function. Fails on any match. (`os` and environment lookups are already banned by the architecture checks.) Plus a unit test that two values built from the same inputs of each closed variant (including the `FearOptions`, `FearRider` and `MentalStressOnSuccess` types), of `combat.RuleOptions` and of `toolbox.RuleOptions` are equal with `==`, and `character.RuleOptions.Equal` holds for equal method sets given in different order. |
+| FR-029 | architecture | An option type is not exported from its package unless a consuming spec names its FR; the scan lists `character.RuleOptions` as consumed (`character-creation.md` FR-054, FR-071) and `toolbox.RuleOptions` as consumed (`toolbox-fear-and-mental-stress.md` FR-100, FR-029, and `toolbox-hazard-effects.md` FR-104), and `combat.RuleOptions` as consumed (`grid-positions-and-movement.md` FR-001), with `BonusFeatsAtLevel20` as the recorded exception, and is updated in the same PR as each further consuming spec. |
 | FR-033 | architecture | Import-direction check: the option files import nothing from a downstream context, the `character` and `combat` option files import nothing from `toolbox`, and no context imports `toolbox` (part of the shared-types-and-ownership.md FR-013 check; architecture-guardrails.md FR-098). |
 | FR-034 | architecture | Scan: the `character`, `combat` and `toolbox` package doc comments (`doc.go`) contain the required statement. |
 | FR-038 | architecture | Import scan: the option files declare and call no `*_usecase.go` function or type. |
@@ -315,9 +315,9 @@ ships with the package skeleton; the option types ship in their owner contexts'
 phases (3, 4, 5). Settled: one options object per context, owned by
 its context's spec (shared-types-and-ownership.md FR-057); type phase is the
 context's phase (FR-014, FR-045). External follow-up, not blocking:
-`roadmap.md` still lists `RuleOptions` under Phase 5 (move `CharacterRuleOptions`
-to Phase 3, `CombatRuleOptions` to Phase 4, `ToolboxRuleOptions` to Phase 5;
-the decisions win until then; export waits for a consuming FR, FR-029). The rank of the `ToolboxRuleOptions` field types
+`roadmap.md` still lists `RuleOptions` under Phase 5 (move `character.RuleOptions`
+to Phase 3, `combat.RuleOptions` to Phase 4, `toolbox.RuleOptions` to Phase 5;
+the decisions win until then; export waits for a consuming FR, FR-029). The rank of the `toolbox.RuleOptions` field types
 is open question Q-20 in `toolbox-hazard-effects.md`.
 
 Other settled items:
@@ -330,9 +330,9 @@ Other settled items:
 
 `CHANGELOG.md`, under Unreleased, **Added**, when each options object is
 exported (FR-029): "Rule options for the optional choices SRD 5.2.1 itself
-presents: `CharacterRuleOptions` (ability score generation methods, starting
-level, bonus feats at level 20), `CombatRuleOptions` (playing on a grid) and
-`ToolboxRuleOptions` (Fear Effects riders, half damage on a successful Mental
+presents: `character.RuleOptions` (ability score generation methods, starting
+level, bonus feats at level 20), `combat.RuleOptions` (playing on a grid) and
+`toolbox.RuleOptions` (Fear Effects riders, half damage on a successful Mental
 Stress save)." The owner specs record their own entries. Not **BREAKING**:
 purely additive, and the `standard` options reproduce the SRD baseline, so no
 existing rule result changes. Adding a variant to a closed option type later, or

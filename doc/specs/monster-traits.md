@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `content-schema-and-decoder.md`, `content-monsters.md`, `modifiers-and-advantage.md`, `d20-tests.md`, `derived-stats.md`, `combat-foundations.md`, `hit-points-and-damage.md`, `conditions.md`, `environment-hazards-and-objects.md`, `initiative-and-actions.md`, `monster-limited-use.md` |
@@ -43,8 +43,8 @@ Every operation is a domain function. **There is no use case, no port and no sig
 | Legendary Resistance | `UseLegendaryResistance`, closed `SaveFailure` (`RolledSaveFailure(CheckResult)`, `ForcedSaveFailure(ForcedFailureResult)`), closed `LegendaryResistanceOutcome` (`LegendaryResistanceApplied`, `LegendaryResistanceRefused`) | Uses are a `PartPerDay` entry of `LimitedUseState`. |
 | Advantage on saving throws against spells and other magical effects | `MagicResistanceCircumstances`, `SaveSourceKind` (`SpellOrMagicalEffect`, `Other`) | Yields `Advantage` (`RollCircumstance`). |
 | Undead Fortitude | `AssessUndeadFortitude` / `SettleUndeadFortitude`, `UndeadFortitudeFacts`, closed `UndeadFortitudeCheck` (`UndeadFortitudeNotTriggered(reason)`, `UndeadFortitudeSaveRequired(dc)`) and `UndeadFortitudeSettlement` (`UndeadFortitudeSurvived`, `UndeadFortitudeFell`) | `ExemptionReason`: `NotReducedToZero`, `CriticalHit`, `RadiantDamage`. |
-| Regeneration | `RegenerationState`, `RegenerationStep`, `Regeneration` operations, closed `RegenerationTurn` (`RegenerationHealed`, `RegenerationSkipped(reason)`, `RegenerationLetDie`), `RegenerationDeferral` (`RegenerationDeathDeferred`, `RegenerationNotDeferred`) | `SkipReason`: `Suppressed`, `NoHitPoints`, `SwarmCannotRegain`. |
-| Death Burst | `TriggerDeathBurst`, closed `DeathBurstResult` (`DeathBurstTriggered(part, ability, dc)`, `DeathBurstNotTriggered`) | A fact; the host resolves the burst. |
+| Regeneration | `RegenerationState`, `RegenerationStep`, `Regeneration` operations, closed `RegenerationTurn` (`RegenerationHealed`, `RegenerationSkipped(reason)`, `RegenerationLetDie`), `RegenerationDeferral` (`RegenerationDeferred`, `RegenerationNotDeferred`; the outcome variant is not named like the event `RegenerationDeathDeferred` of FR-090) | `SkipReason`: `Suppressed`, `NoHitPoints`, `SwarmCannotRegain`. |
+| Death Burst | `TriggerDeathBurst`, closed `DeathBurstResult` (`DeathBurstTriggered(part, ability, dc)`, `DeathBurstNotTriggered`, `DeathBurstLimitExceeded` for more than 256 events, plan P10) | A fact; the host resolves the burst. |
 | Swarm | `CheckSwarmChange`, `SwarmChange` (`SwarmHealing`, `SwarmTemporaryHitPoints`, `SwarmMaximumReduction`), `SwarmRefusal` | `SmallestOpening` is `CreatureSize.tiny`. |
 | Pack Tactics | `PackTacticsCircumstances`, `AllyFact(distanceFeet, incapacitated)` | `DistanceFeet` runs from the ally to the attack's target |
 | Sunlight Sensitivity, Sunlight Weakness | `SunlightPenaltyScope` (`AbilityChecksAndAttackRolls`, `AllD20Tests`) | |
@@ -190,7 +190,7 @@ Cases RG-1 (one test per row; FR-041 to FR-047). Troll: 15, RG-2; Oni: 10, RG-1.
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-060 | `SwarmRules` MUST expose `CannotRegainHitPoints` false, `canGainTemporaryHitPoints` false, `sharesSpaces` true and `SmallestOpening` `CreatureSize.tiny` for a recognised `SwarmTrait`. | SRD 5.2.1, "Swarm of Crawling Claws", p. 278; p. 361 | happy |
+| FR-060 | `SwarmTrait.Rules()` MUST return a `SwarmRules` exposing `CannotRegainHitPoints()` true, `CanGainTemporaryHitPoints()` false, `SharesSpaces()` true and `SmallestOpening()` `CreatureSize.tiny` for a recognised `SwarmTrait`. | SRD 5.2.1, "Swarm of Crawling Claws", p. 278; p. 361 | happy |
 | FR-061 | `CheckSwarmChange(trait, change)` MUST return `(CannotRegainHitPoints, true)` for `SwarmHealing` and `(CannotGainTemporaryHitPoints, true)` for `SwarmTemporaryHitPoints`, both constants of `SwarmRefusal`, and `(0, false)` (permitted) for `SwarmMaximumReduction`; the return type is `(SwarmRefusal, bool)`, `true` meaning refused. The host calls it before `Restore` or `GainTemporary`. | SRD 5.2.1, p. 278; "Temporary Hit Points", p. 18 | unhappy (rule interaction) |
 | FR-062 | A monster with both a `SwarmTrait` and a `RegenerationTrait` MUST be skipped by Regeneration (FR-043): the swarm clause wins. Package design; no SRD swarm has Regeneration. | SRD 5.2.1, p. 278 | unhappy (rule interaction) |
 
@@ -329,7 +329,20 @@ Paths: `combat/monster_traits_*_test.go` (package `combat_test`, unit); `scenari
 | FR-094 | scenario | `scenarios/`, public API only: bundled-content monsters through `RecogniseTraits`, counts equal the fixture; one chain: Troll hit by Fire, dropped, deferred, turn start `LetDie` |
 
 - **Mutation testing:** the `combat` monster-traits files at a score of at least 80 (testing.md §8; `gomu` run only in Docker with CPU and worker caps), watching the `0..5` inclusive bounds of FR-070, the `5 +` in FR-033, the exemption order of FR-032, the refusal order of FR-012 and the `>` versus `>=` of `BecameMiss`.
-- **Not covered:** nothing.
+- **Not covered:** see "Not yet implemented" below.
+- **Implementation status.** Partially implemented in package `combat`. Every requirement id FR-001 to FR-093 and FR-095 is T and has a test, except FR-094. Files, all silent and pure (no `context`, `telemetry` or `dice`): `monster_traits_trait.go` (`MonsterTrait`, the twelve traits and their constructors, `SunlightPenaltyScope`), `monster_traits_recognise.go` (`RecogniseTraits`, `RecognisedTraits`, `UnrecognisedTrait`, `TraitRejection`, the T-1 template matcher), `monster_traits_event.go` (the `MonsterTraitEvent` family), `monster_traits_legendary_resistance.go`, `monster_traits_circumstances.go` (Magic Resistance, Pack Tactics, Sunlight Sensitivity and Weakness), `monster_traits_undead_fortitude.go`, `monster_traits_regeneration.go`, `monster_traits_death_burst.go`, `monster_traits_situational.go` (Swarm, Flyby, Amorphous, Siege Monster) and `monster_traits_parry.go`. `internal/archtest/combat_monster_traits_test.go` enforces FR-090, FR-092 and FR-093 and the closed sets. `FuzzRecogniseTraits` and `FuzzTraitConstructors` are the fuzz targets, `ExampleRecogniseTraits` the example and `scenarios/monster_traits_test.go` the scenario. The plan P10 caps are built (Limits below) and tested in `monster_traits_limit_test.go`. Decisions made while implementing, none changing a requirement:
+  - The outcome variants of Regeneration's deferral are `RegenerationDeferred` and `RegenerationNotDeferred`, because `RegenerationDeathDeferred` is the event (FR-090). Names that would be generic carry a prefix (`TraitTextMismatch`, `RegenerationSkipSuppressed`, `SwarmCannotRegainHitPoints`, `SunlightPenaltyAllD20Tests`, `DamageRecipientCreature`, `OtherSaveSource`).
+  - Plan P13: the numbers parsed from text and the trait constructors are bounded by `content.MonsterMaxNumber` (Regeneration amount, Parry bonus, Death Burst DC at least `content.MonsterMinSaveDC`); a digit string that does not fit an int is out of range, which keeps the 32-bit run safe.
+  - A zero trait or zero input to a function without an `error` result gives the neutral answer (an empty circumstance list, `SwarmChange` permitted, `UndeadFortitudeNotTriggered(NotReducedToZero)`, `ParryUnavailable(ParryNoTrait)`, a regeneration skip `NoHitPoints`); a function with an `error` result rejects it.
+  - Regeneration in a swarm is carried on the trait: `RecogniseTraits` marks it (`SwarmCannotRegain`, `WithSwarm`), since `AtStartOfTurn` takes no swarm argument (FR-043, FR-062).
+  - `UseLegendaryResistance` also rejects a `LimitedUseState` that belongs to another combatant than `subject`.
+  - `SettleUndeadFortitude` removes a `BecameBloodied` already in the transition and adds it once after the drop, so a `FallsUnconscious` creature does not get two; the survivor status is built with `RestoreHitPointStatus` (a dead status cannot be restored).
+  - A suppressed second-form creature at 0 Hit Points (Stable or Dying) dies at its turn start (FR-046); the state keeps no "deferred" flag, the status says it.
+
+**Limits (plan P10; design numbers, not SRD rules).** `PackTacticsCircumstances` takes at most 256 allies and `ApplySiegeMonster` at most 64 damages; over either they return a `LimitExceededError` (matching `srderr.ErrInvalidInput`, `String()` the shared value `limit_exceeded`) and the slices are not changed. `TriggerDeathBurst` reads at most 256 events: more is the new variant `DeathBurstLimitExceeded` of the closed `DeathBurstResult` (the function has no error to return and "nothing can be said" is not "not triggered"), checked after the zero-trait and zero-subject answers. `RecogniseTraits` reads a trait text of at most 1,024 bytes (the longest template is under 400); a part named like a trait whose text is longer is `TraitTextMismatch` without the text being scanned, so the function still never fails. A monster's parts are capped where it is read (`StartLimitedUse`, 64). `monster_traits_limit_test.go` tests each cap at the cap and at cap plus one (1,024 and 1,025 bytes for the text).
+
+Not yet implemented: FR-094, the bundled-content test over the stat blocks of SRD 5.2.1 pp. 258-364 and its committed `testdata/` fixture (the bundle holds no monster until Phase 5; the tests use synthetic monsters whose parts carry the T-1 templates with made-up nouns). The cap tests of plan P10 are written (Limits above). Mutation testing: mutation skipped at user request; no mutation score.
+
 
 ## 9. Open questions and decisions
 
@@ -346,7 +359,7 @@ Settled, one line each (web research confirmed the common reading in each case; 
 
 Open: none. Escalated: none.
 
-**Amendments for other specs:** A-1 (made) `shared-types-and-ownership.md` 4.11 rank 27 gains `monster-traits` beside `spell-effects` and `returning-to-life` (the guardrail rank check, `architecture-guardrails.md` FR-101, fails until the row exists, so land both together). A-2 (made) `documentation_index.md` gains a `specs/monster-traits.md` row. A-3 (not yet made) `CHANGELOG.md` `Unreleased` gets the section 10 entry.
+**Amendments for other specs:** A-1 (made) `shared-types-and-ownership.md` 4.11 rank 27 gains `monster-traits` beside `spell-effects` and `returning-to-life` (the guardrail rank check, `architecture-guardrails.md` FR-101, fails until the row exists, so land both together). A-2 (made) `documentation_index.md` gains a `specs/monster-traits.md` row. A-3 (made) `CHANGELOG.md` `Unreleased` has the section 10 entry.
 
 ## 10. Changelog impact
 

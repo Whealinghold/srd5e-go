@@ -379,104 +379,25 @@ func RunRollerContract(t *testing.T, factory func(t *testing.T) dice.Roller)
 
 ### Mutation testing
 
-For new behaviour, run mutation testing on the changed code. A surviving mutant
-means a test is missing or too weak: add or strengthen a test, do not just
-re-run. For bug fixes, the new test MUST fail without the fix (§2). A test that
-cannot fail is a defect.
+Mutation testing is not part of the normal process. No change needs a
+mutation score, CI does not run it, and the PR template does not ask for one.
+The tests a change needs are decided by the evaluation in §2 and the
+unhappy-path checklist in §4, and a bug-fix test MUST fail without the fix (§2).
 
-The project uses [`gomu`](https://github.com/sivchari/gomu). It mutates the
-source (small changes such as `<` to `<=` or `&&` to `||`) and checks that a
-test fails for each.
+The `just mutate` recipe and the pinned `gomu` version stay in the repository
+for a one-off check when a person asks for it. When that happens:
 
-**`gomu` MUST NEVER run directly on the host.** Run raw, it oversubscribes
-every core and has crashed machines. It runs only inside Docker, with both the
-container CPU quota (`--cpus`) and gomu's `--workers` capped at one quarter of
-the host's processors (minimum 1):
-
-```sh
-just mutate            # whole module
-just mutate ./srderr     # one package
-```
-
-`just mutate` wraps this (verified on this host with gomu v0.2.1, 2026-10-17):
-
-```sh
-cpus=$(( $(nproc) / 4 )); cpus=$(( cpus < 1 ? 1 : cpus ))
-docker run --rm --cpus="$cpus" --memory=8g --memory-swap=8g --pids-limit=1024 \
-  --user "$(id -u):$(id -g)" -e GOMEMLIMIT=3GiB -e HOME=/tmp/home -e GOCACHE=/tmp/gocache -e GOPATH=/tmp/gopath \
-  -v "$PWD":/workspace -w /workspace golang:1.26 \
-  sh -c "go install github.com/sivchari/gomu/cmd/gomu@v0.2.1 && /tmp/gopath/bin/gomu run --workers=$cpus --incremental=false --ci-mode --threshold=80 ."
-```
-
-The recipe adds these on top of that command:
-
-- **`MUTATE_CPUS`** lowers the cap: `cpus = min(nproc/4 (at least 1), MUTATE_CPUS)`,
-  used for both `--cpus` and `--workers`. It can never raise the cap above a
-  quarter of the processors; a non-integer value is rejected.
-- **Invoking user, not root.** The container runs with `--user "$(id -u):$(id -g)"`
-  and `HOME`, `GOCACHE`, `GOPATH` under `/tmp`, so `mutation-report.json` and
-  `.gomu_history.json` belong to you.
-- **One file or one package.** `just mutate ./content/kind.go` mutates a single
-  file; `just mutate ./srderr` a package; the default `.` the whole module.
-  The whole-module and package calls keep `--ci-mode --threshold=80` (gate fails
-  below 80). A `.go` path omits `--ci-mode`: it prints that file's score and
-  survivors and exits 0, so judge the score against 80 yourself. Example:
-  `MUTATE_CPUS=3 just mutate ./content/kind.go`.
-- **Memory and process cap.** The container also gets `--memory=8g
-  --memory-swap=8g` (no swap) and `--pids-limit=1024`, so a runaway mutant
-  cannot exhaust RAM or the process table, and `GOMEMLIMIT=3GiB` inside it makes
-  the Go runtime collect garbage early (a first run without it was OOM-killed by
-  a mutant test binary growing to 7.5 GiB).
-- **Shared machines.** Run `just mutate` (and every other heavy host command)
-  under a lock and a cgroup cap, for example
-  `flock /tmp/srd5e-heavy.lock systemd-run --user --scope -q -p CPUQuota=400% -p MemoryMax=8G -p MemorySwapMax=0 nice -n 19 ionice -c3 env GOMAXPROCS=4 GOMEMLIMIT=6GiB MUTATE_CPUS=3 just mutate ./content/kind.go`,
-  so concurrent runs queue instead of competing.
-- **`MUTATE_OUTPUT`** passes `--output` to gomu. `console` (default) and `text` print only totals; `MUTATE_OUTPUT=json` writes `mutation-report.json` (git-ignored) listing every mutant with file, line, column, original, mutated, and status (`KILLED`, `SURVIVED`, `TIMED_OUT`, ...), so survivors can be read from it. Example: `MUTATE_OUTPUT=json just mutate ./character/foo.go`. A `TIMED_OUT` mutant is not a kill: when the whole-package suite takes longer than `MUTATE_TIMEOUT` (default 30 s) under the CPU cap, raise `MUTATE_TIMEOUT`.
-- gomu v0.2.1 produces no output for a source file without a same-named
-  `_test.go` (`foo.go` needs `foo_test.go`); such files use the manual-mutation
-  fallback below.
-
-Verified gomu v0.2.1 CLI (`gomu run --help`):
-
-- Flags: `--base-branch` (default `main`), `--ci-mode`, `--fail-on-gate`
-  (default true), `--incremental` (default true), `--output`
-  (console, json, html, text), `--threshold` (default 80), `--timeout`
-  (seconds, default 30), `--workers` (default 4), `-v`. There is no `--`
-  passthrough to `go test`.
-- Takes at most ONE path argument. `./...` fails ("work directory does not
-  exist"); use `.` to recurse over the module or one package such as `./srderr`.
-- Without `--ci-mode` the exit code is 0 even below the threshold; with
-  `--ci-mode` a score under `--threshold` exits non-zero ("quality gate failed").
-- `--ci-mode` writes `mutation-report.json`, and runs write `.gomu_history.json`
-  (both git-ignored).
-- Incremental mode (`--incremental`, `--base-branch`) tests only files changed
-  against the base branch. It is UNVERIFIED here; the repo has no commits to diff.
-  When trying it, the base must exist locally (for example `origin/main`).
-- Whether `.gomuignore` is honoured is UNVERIFIED (not observed in output).
-- Scores varied between identical runs on ./srderr (67.7% vs 65.5%), so treat a
-  score near the threshold as noisy.
-- First run had normal DNS in Docker; `go install` took seconds.
-
-- **Scope:** changed files in kernel packages (`dice`, `ability`, `modifier`,
-  `srderr`, `telemetry`) and context domain code MUST be mutation tested with a
-  score of at least **80**. Use cases SHOULD be. Report the score and the number
-  of survivors in your `Testing` entry. `*test` packages, `internal/archtest`
-  and `examples` are excluded (list them in `.gomuignore`).
-- **Run one mutation process at a time.** Never raise `--workers` or `--cpus`
-  above the quarter cap, and never run gomu outside the container.
-- **Tests first.** gomu runs the existing suite for each mutant; make it pass
-  and fast before mutating. Set `--timeout` if a legitimate test is slow.
-- **Surviving mutants** are fixed with a better test. Only a mutant that
-  provably cannot change behaviour (an *equivalent* mutant) may be excluded, and
-  the reason is written beside it or in `.gomuignore`.
-- **Pinned version.** The justfile `mutate` recipe (also used by CI) holds the fixed tag
-  (`@v0.2.1`); upgrading is a deliberate change to both. The tool is young and its behaviour may change.
-- **Fallback:** if the tool cannot analyse a file (for example, a very new Go
-  language feature, or generics it does not parse), do the manual check
-  instead: break the implementation (flip a comparison, drop a branch, off-by-one
-  a boundary), confirm a test fails, restore it, and list the mutations tried.
-  Do this on a clean working tree and restore with `git restore`/`git stash`,
-  never by hand-reverting.
+- `gomu` MUST NEVER run directly on the host. Run raw, it oversubscribes
+  every core and has crashed machines. It runs only inside Docker, through
+  `just mutate`, with both the container CPU quota (`--cpus`) and gomu's
+  `--workers` capped at one quarter of the host's processors (minimum 1).
+- Run one mutation process at a time. Never raise `--workers` or `--cpus`
+  above the quarter cap.
+- Read each surviving mutant in the source. A real gap gets a better test. A
+  mutant that cannot change behaviour (an equivalent mutant, such as an error
+  branch after a validated constructor) is recorded with its reason and is not
+  tested.
+- Results of past runs are in `doc/research/mutation-results-phase-4.md`.
 
 ---
 
@@ -610,7 +531,7 @@ internal/archtest/                             # guardrails (§9)
 - **Leaving stale tests** that encode old behaviour.
 - **Skipping the evaluation:** finishing a change without working out its tests,
   or reporting "covered by existing tests" without saying which.
-- **Running `gomu` on the host,** or with workers or CPUs above the quarter cap.
+- **Running `gomu` on the host,** or with workers or CPUs above the quarter cap (§8).
 - **Content from outside SRD 5.2.1** in tests, comments or fixtures.
 
 ---
@@ -631,9 +552,6 @@ internal/archtest/                             # guardrails (§9)
 - [ ] New or changed adapters and doubles pass the port's contract suite.
 - [ ] Each changed package has at least 90% statement coverage and meaningful
       assertions.
-- [ ] Changed kernel and domain files are mutation tested (in Docker, capped at
-      a quarter of the CPUs) with a score of at least 80, survivors handled
-      (§8), and the score is in my `Testing` entry.
 - [ ] Stale tests updated or removed; nothing skipped or commented out.
 - [ ] The commit/PR and my final summary have a `Testing` entry.
 - [ ] `go vet`, `golangci-lint run` and `go test -race -shuffle=on -cover ./...`
@@ -643,7 +561,7 @@ internal/archtest/                             # guardrails (§9)
 
 ## Read receipt
 
-RULE-TAG: `testing-466f52285704`
+RULE-TAG: `testing-8fac2fd574af`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

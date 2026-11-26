@@ -4,7 +4,7 @@
 
 A framework-agnostic Go implementation of the fifth-edition rules in System Reference Document 5.2.1, written to be imported by other projects.
 
-Status: early. Dice, modifiers, ability scores, the `dice.Roller` port, the error model, telemetry ports, `d20` (ability checks, saving throws and attack rolls), `content` (typed SRD content, the decoder and a bundled slice) and `character` (the character aggregate, derived stats, creation, level advancement, rests, spellcasting, magic items, feats, species traits and the twelve classes) exist.
+Status: early. Dice, modifiers, ability scores, the `dice.Roller` port, the error model, telemetry ports, `d20` (ability checks, saving throws and attack rolls), `content` (typed SRD content, the decoder and a bundled slice) and `character` (the character aggregate, derived stats, creation, level advancement, rests, spellcasting, magic items, feats, species traits and the twelve classes) and `combat` (combatants, hit points and damage, conditions, attacks, initiative and turns, movement, spell effects, the encounter aggregate, whole-action resolution, roster changes and summoned creatures) exist.
 
 ## Goals
 
@@ -81,9 +81,11 @@ func main() {
 | `content/contenttest` | `FakeSource`, `FakeDecoder`, `RunSourceContract`, `RunDecoderContract` |
 | `content/data` | `BundledSource` and the bundled SRD slice (covered by `NOTICE.md`) |
 | `character` | the character aggregate and its rules: derived stats, creation, level advancement and multiclassing, rests, spellcasting and casting, magic items, feats, species traits, and the twelve classes |
+| `combat` | the combat context: combatant identity, hit points and damage, conditions, grappling, attacks, initiative and turns, movement and the grid, spell effects on combatants, monster setup and traits, the `Encounter` aggregate, action resolution, roster changes and summoned creatures |
+| `combat/combattest` | event-family checks for `combat` events |
 | `scenarios` | cross-package tests through the public API (tests-only directory; not an importable package) |
 
-Not built yet: `combat` and `toolbox` (see [doc/roadmap.md](doc/roadmap.md)).
+Not built yet: `toolbox` (see [doc/roadmap.md](doc/roadmap.md)).
 
 ## Dice and rolling
 
@@ -153,6 +155,17 @@ next := res.(character.LevelUpCharacterSucceeded).Character()
 ```
 
 The bundled content is a slice of SRD 5.2.1 (four species, the twelve classes and 73 spells); the rest of the spells, the equipment, feats, backgrounds and magic items arrive with the Phase 5 data, and tests use synthetic entries for them.
+
+## Combat
+
+The `combat` package runs a fight. As in `character`, state goes in a command and the new state and domain events come out in a closed result: an `Encounter` (the aggregate root, built by `StartEncounter` from an `InitiativeOrderEstablished`) and an `ActionLedger` (what each combatant has spent this turn) are the inputs of the next call, so the host decides where they are stored. A combatant is a `CombatantID` with a `Combatant` value (Hit Points, conditions, side); the library never holds a roster for you.
+
+- **Use cases** are one type per operation (`PerformAttack`, `PerformUnarmedStrike`, `TakeCombatantAction`, `MoveCombatant`, `AdvanceCombatTurn`, `DealDamageToCombatant`, `ApplyConditionToCombatant`, `SummonCreature` and so on). Each takes a `<Name>Command` and returns a closed `<Name>Result`. Dice come through the `dice.Roller` port (`dicetest.FixedRoller` in tests) and monster content through a `content.Source`.
+- **A refusal is a value, not an error.** An action the rules do not allow now (an attack past the allowance, a condition on a dead combatant, a move past the Speed) is a `...Rejected` or `...NotPossible` variant that returns the encounter unchanged and rolls no die. An unknown `CombatantID` or a forged value is an `...Invalid` variant. The `error` return is only for a roller or content-source failure (`*srderr.PortError`), a cancelled `ctx` or a malformed command.
+- **Limits.** An encounter holds at most 256 combatants, a creature at most 64 active effects, a summoner at most 32 summoned creatures, and one call at most 4096 events and 1000 cascade steps; each is a typed `limit_exceeded` result.
+- **Telemetry.** Every use case records one span, `srd5e.combat.operations`, `srd5e.combat.operation_duration` and `srd5e.combat.events` through the injected ports (`combat.WithTelemetry`); see the "What to monitor for `combat`" section of [doc/observability/signals.md](doc/observability/signals.md).
+
+`ExamplePerformAttack` and `ExampleApplyConditionToSet` in the package show a round and a condition set, and `scenarios/` runs scripted rounds with conditions, mounting, Concentration and a refused action followed by a legal one. Not yet built in the library: the bundled monsters and equipment (Phase 5 data); tests use synthetic combatants and stat blocks.
 
 ## Observability (logging, tracing, metrics)
 

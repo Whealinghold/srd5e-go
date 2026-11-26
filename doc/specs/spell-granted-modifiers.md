@@ -2,21 +2,21 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `errors-and-results.md`, `dice-and-rolls.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `observability-ports.md`, `content-schema-and-decoder.md`, `d20-tests.md`, `derived-stats.md`, `combat-foundations.md`, `hit-points-and-damage.md`, `attacks.md`, `initiative-and-actions.md` |
 
-What an **active** spell contributes to rolls and stats, as inputs that the existing specs already accept (`Modifier`, `RollCircumstance`, flat Armor Class bonuses, `DamageComponent`, `DamageAdjustment`, `MovementSpeeds`). Rank 28 in table 4.11 of shared-types-and-ownership.md (amendment A4), beside `active-effects` and `encounter-aggregate`: after `spell-effects` (27), before `combat-action-resolution` (29), which is the host-facing composer of these inputs. The **lifecycle** of an active spell (start, duration, Concentration, expiry, dismissal) and **Combining Spell Effects** (p. 106) are owned by `active-effects.md` (draft, rank 28; its FR-015 to FR-019 `EffectCombination`), as are the roll and damage riders of Bless, Bane, Hex and Hunter's Mark (its FR-048 to FR-052 `EffectRiders`). This spec does not import it (equal rank, shared-types-and-ownership.md FR-056): the host passes `SpellModifierSource`s taken from the effects that `EffectCombination.Applying` returns (FR-008), and combines the dice of both. `combat-action-resolution.md` (29) does that wiring.
+What an **active** spell contributes to rolls and stats, as inputs that the existing specs already accept (`Modifier`, `RollCircumstance`, flat Armor Class bonuses, `DamageComponent`, `DamageAdjustment`, `MovementSpeeds`). Rank 28 in table 4.11 of shared-types-and-ownership.md (amendment A4), beside `active-effects` and `encounter-aggregate`: after `spell-effects` (27), before `combat-action-resolution` (29), which is the host-facing composer of these inputs. The **lifecycle** of an active spell (start, duration, Concentration, expiry, dismissal) and **Combining Spell Effects** (p. 106) are owned by `active-effects.md` (draft, rank 28; its FR-015 to FR-019 `EffectCombination`), while the roll and damage riders of Bless, Bane, Hex and Hunter's Mark are owned here (FR-093 to FR-096; decided after the plan audit, `active-effects.md` withdrew its FR-048 to FR-052 in favour of them). This spec does not import it (equal rank, shared-types-and-ownership.md FR-056): the host passes `SpellModifierSource`s taken from the effects that `EffectCombination.Applying` returns (FR-008), and takes every die from this spec. `combat-action-resolution.md` (29) does that wiring.
 
 ## 1. Purpose and scope
 
-`spell-effects.md` resolves a cast (Q11 there) and `spell-effect-data.md` keeps "riders on later attack rolls or saves" as text (its E16). Nothing says what Bless adds to a roll, what Shield does to Armor Class, or when Hunter's Mark adds damage. This spec is the rule layer for what `active-effects.md` does not model: pure functions from a list of **currently applying** spell sources plus the context of one roll or stat to the contributions, one small use case that rolls bonus dice, and a closed catalogue of 12 SRD spells.
+`spell-effects.md` resolves a cast (Q11 there) and `spell-effect-data.md` keeps "riders on later attack rolls or saves" as text (its E16). Nothing says what Bless adds to a roll, what Shield does to Armor Class, or when Hunter's Mark adds damage. This spec is the rule layer for what `active-effects.md` does not model: pure functions from a list of **currently applying** spell sources plus the context of one roll or stat to the contributions, one small use case that rolls bonus dice, and a closed catalogue of 14 SRD spells.
 
-- **Roll contributions** (FR-010 to FR-024): Guidance as a bonus die; Haste, Slow, Bestow Curse, Hunter's Mark (finding it) as Advantage, Disadvantage or a flat penalty. Bless and Bane dice and Hex's check Disadvantage are `EffectRiders` of `active-effects.md` (FR-011, FR-012, FR-015, FR-019 withdrawn here).
+- **Roll contributions** (FR-010 to FR-024): Guidance as a bonus die; Haste, Slow, Bestow Curse, Hunter's Mark (finding it) as Advantage, Disadvantage or a flat penalty. Bless and Bane dice and Hex's check Disadvantage are riders owned here (FR-093, FR-094; FR-011, FR-012, FR-015, FR-019 stay withdrawn).
 - **Armor Class** (FR-040 to FR-046): Shield, Shield of Faith, Haste, Slow bonuses and penalties; Mage Armor's base; Barkskin's floor.
 - **Speed** (FR-050 to FR-056): Longstrider, Haste, Slow.
-- **Damage** (FR-061 to FR-067): Bestow Curse extra damage; Resistance's reduction of damage taken. Hunter's Mark and Hex extra damage is `EffectRiders.ExtraDamage` (FR-060 withdrawn).
+- **Damage** (FR-061 to FR-067): Bestow Curse extra damage; Resistance's reduction of damage taken. Hunter's Mark and Hex extra damage is owned here (FR-095; FR-060 stays withdrawn).
 - **Sources** (FR-001 to FR-008): the source value and the closed catalogue. Combining (FR-003 to FR-006) is `active-effects.md`'s and withdrawn here.
 
 **Out of scope:**
@@ -27,6 +27,7 @@ What an **active** spell contributes to rolls and stats, as inputs that the exis
 - Spells whose effect is a condition (Hold Person), a Temporary Hit Point gain (Heroism), true Resistance or Immunity (Heroes' Feast, Hallow), Hit Point maximum or other stat changes: other specs or text only. Only the 12 spells of table C are modelled; every other id returns `SpellModifiersNotModelled` (FR-002).
 - Other fifth-edition material. Nothing core was missing from the PDF for these spells.
 - Rule options: the SRD names none here (`doc/rules/architecture.md` §3).
+- **Limits (plan P10):** `SpellModifierSource` list per target 64 (the active effects that grant the modifiers; every `Query*` function returns a `LimitExceededError`, matching `srderr.ErrInvalidInput` with `String()` the shared value `limit_exceeded`, for a creature holding a 65th source, FR-097); dice per expression 1,000 for `roll_spell_bonus_dice` (a `BonusDie` is one expression, bounded by `dice.MaxCount`). The use case emits no event, so the events cap does not apply. Tested at the cap and cap plus one in `spell_modifier_rider_test.go`.
 
 ## 2. Source
 
@@ -46,7 +47,7 @@ Web research informed three judgements, each justified in SRD terms in section 9
 | (an active spell on a creature) | `SpellModifierSource` | Package term. Supplied by the host; this spec holds no lifecycle. |
 | Combining Spell Effects | `EffectCombination` (`active-effects.md`) | FR-008; not defined here. |
 | attack roll, saving throw, ability check, Death Saving Throw | `RollContext` (closed variant set) | FR-010. |
-| "adds 1d4", "subtract 1d4" | `BonusDie` | A `dice.Expression` with a sign. Guidance here; Bless and Bane come from `EffectRiders`. FR-016, FR-030. |
+| "adds 1d4", "subtract 1d4" | `BonusDie` | A `dice.Expression` with a sign. Guidance, Bless and Bane (a penalty die). FR-016, FR-030, FR-093. |
 | bonus / penalty to AC | `FlatBonus` (`derived-stats.md` FR-038) | FR-040. |
 | base AC calculation | `AbilityBasedArmorClassBasis` (`derived-stats.md`) | Mage Armor, with a base of 13 (amendment A1). |
 | extra damage | `DamageComponent` (`attacks.md`) | `DiceDamage`. FR-060. |
@@ -65,7 +66,7 @@ Stable ids. Ids are allocated in blocks; an id absent from this section and not 
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-001 | A `SpellModifierSource` MUST hold the `SpellID`, the casting `CombatantID` (`caster`), the affected creature (`target`), a `CastOrder` (a non-negative `int` used only to order output, FR-023; it need not be unique) and a `SpellModifierChoice` (closed variant set, an interface with an unexported marker method: `NoChoice`, `ChosenSkill(Skill)`, `ChosenAbility(Ability)`, `ChosenDamageType(DamageType)`, `ChosenCurse(CurseEffect)`; `CurseEffect` closed variant set: `CurseAbility(Ability)`, `CurseAttackRolls`, `CurseDodge`, `CurseExtraDamage`). A choice of the wrong variant for the spell (Guidance without a skill, Haste with any choice, Resistance with a type outside the eleven of its list) MUST be rejected by the constructor `NewSpellModifierSource` with an error that is `errors.Is` `srderr.ErrInvalidInput` (the `Must` form panics with it). | SRD 5.2.1, "Guidance", p. 138; "Hex", p. 140; "Resistance", p. 158; "Bestow Curse", pp. 112-113 | unhappy (invalid input) |
+| FR-001 | A `SpellModifierSource` MUST hold the `SpellID`, the casting `CombatantID` (`caster`), the affected creature (`target`), a `CastOrder` (a non-negative `int` used only to order output, FR-023; it need not be unique) and a `SpellModifierChoice` (closed variant set, an interface with an unexported marker method: `NoChoice`, `ChosenSkill(Skill)`, `ChosenAbility(Ability)`, `ChosenResistanceType(DamageType)` (named so that it does not collide with `content.ChosenDamageType`), `ChosenCurse(CurseEffect)`; `CurseEffect` closed variant set: `CurseAbility(Ability)`, `CurseAttackRolls`, `CurseDodge`, `CurseExtraDamage`). A choice of the wrong variant for the spell (Guidance without a skill, Haste with any choice, Resistance with a type outside the eleven of its list) MUST be rejected by the constructor `NewSpellModifierSource` with an error that is `errors.Is` `srderr.ErrInvalidInput` (the `Must` form panics with it). | SRD 5.2.1, "Guidance", p. 138; "Hex", p. 140; "Resistance", p. 158; "Bestow Curse", pp. 112-113 | unhappy (invalid input) |
 | FR-002 | `SpellModifierCatalogue.lookup(SpellID)` MUST return the closed `SpellModifierLookup`: `SpellModifiersKnown(entry)` for the 12 ids of table C, else `SpellModifiersNotModelled(spellID)`. A not-modelled spell contributes nothing to any query and is not an error (the spell may still resolve its cast through `spell-effects.md`). Ids are `snake_case` (`hunters_mark`, `shield_of_faith`; shared-types-and-ownership.md FR-007). | SRD 5.2.1, "Effects", p. 106 (outcomes beyond the stated effects are the GM's); `doc/rules/architecture.md` §6 | unhappy (missing content) |
 | FR-007 | Every query MUST be a pure function of the sources and its context. It MUST NOT read a clock, a duration or a Concentration state, and a source the host passes is treated as applying. An empty source list MUST give the neutral result of each query (no dice, no circumstance, no bonus, speed and Armor Class unchanged). The input list MUST NOT be altered. | `doc/rules/architecture.md` §3 (purity); lifecycle is out of scope (section 1) | unhappy (empty and minimal) |
 | FR-008 | Sources MUST be the applying effects: the host runs `EffectCombination.Applying` (`active-effects.md` FR-015 to FR-018) and maps each result to a `SpellModifierSource`. Different spells add; same spell and same subject give one source, the latest or most potent. A list holding two sources with the same `SpellID` and `Target` MUST be rejected: every `Query*` function returns an error that is `errors.Is` `ErrDuplicateSource` (wrapping `srderr.ErrInvalidInput`; the host skipped the combining step). Different spells with equal `CastOrder` are legal. Bestow Curse recast by a second caster on the same target is one source (the owner's key); it is the owner's rule, not re-decided here. | SRD 5.2.1, "Combining Spell Effects", p. 106; shared-types-and-ownership.md FR-048 | unhappy (rule interaction; invalid input) |
@@ -88,11 +89,11 @@ Withdrawn ids of this section: FR-011, FR-012, FR-015, FR-019 (see the end of se
 | FR-023 | `SpellRollContributions` MUST list its dice and circumstances in ascending `CastOrder` of their sources, so equal inputs give equal outputs, and MUST expose defensive copies of slices with value equality. | `doc/rules/architecture.md` §3, §4 | unhappy (determinism; immutability) |
 | FR-024 | A context for which no source applies MUST give an empty `SpellRollContributions`; a source of a spell that is not modelled MUST be skipped (FR-002). | `doc/rules/testing.md` §4 (empty and minimal) | unhappy (empty and minimal) |
 
-Table R: roll contexts (one test per row; "none" is an empty result). Rows of withdrawn ids (Bless, Bane, Hex on checks) are tested in `active-effects.md`.
+Table R: roll contexts (one test per row; "none" is an empty result). Rows R22 to R31 (Bless, Bane, Hex on checks) are the rider rows of FR-093 and FR-094.
 
 | Label | Active source | Context | Result | Source | Path |
 |---|---|---|---|---|---|
-| R3 | Bless rider on A (from `EffectRiders`) | A Death Saving Throw | +1d4 | p. 113, p. 17 | unhappy (rule interaction) |
+| R3 | Bless on A | A Death Saving Throw | +1d4 | p. 113, p. 17 | unhappy (rule interaction) |
 | R9 | Guidance on A, Stealth | A Dexterity (Stealth) check | +1d4 | p. 138 | happy |
 | R10 | Guidance on A, Stealth | A Dexterity (Acrobatics) check | none | p. 138 | unhappy (boundary) |
 | R11 | Guidance on A, Stealth | A raw Dexterity check, no skill | none | p. 138 | unhappy (boundary) |
@@ -103,13 +104,23 @@ Table R: roll contexts (one test per row; "none" is an empty result). Rows of wi
 | R18 | Bestow Curse on A, `CurseAbility(wisdom)` | A Wisdom save and a Wisdom check | Disadvantage each | pp. 112-113 | happy |
 | R19 | Bestow Curse on A, `CurseAttackRolls`, caster C | A attacks C; A attacks D; C attacks A | Disadvantage; none; none | pp. 112-113 | unhappy (rule interaction) |
 | R20 | Hunter's Mark by C on M | C Wisdom (Survival) check seeking M; seeking N | Advantage; none | p. 141 | unhappy (boundary) |
-| R21 | Source for a spell id not in table C (Bane) | any | none | FR-002 | unhappy (missing content) |
+| R21 | Source for a spell id not in table C (Fireball) | any | none | FR-002 | unhappy (missing content) |
+| R22 | Bless on A | A attacks M | +1d4 | p. 113 | happy |
+| R23 | Bless on A | A Wisdom save | +1d4 | p. 113 | happy |
+| R24 | Bane on A | A attacks M | -1d4 (a penalty die) | p. 112 | happy |
+| R25 | Bane on A | A Dexterity save | -1d4 | p. 112 | happy |
+| R26 | Bane on A | A Death Saving Throw | -1d4 | p. 112, p. 17 | unhappy (rule interaction) |
+| R27 | Bless and Bane on A | A attacks M | +1d4 and -1d4, one die each in CastOrder | p. 106 | unhappy (rule interaction) |
+| R28 | Bless on A | A Strength check | none | p. 113 | unhappy (boundary) |
+| R29 | Bless on A | M attacks A; M saves | none | p. 113 | unhappy (rule interaction) |
+| R30 | Bane on A | M Death Saving Throw | none | p. 112 | unhappy (rule interaction) |
+| R31 | Hex on A, Strength | A Strength check with and without a skill; A Dexterity check; A Strength save; A attacks; the caster's Strength check | Disadvantage; Disadvantage; none; none; none; none | p. 140 | unhappy (boundary) |
 
 ### 4.3 Rolling the bonus dice
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-030 | `RollSpellBonusDice.Do(ctx, cmd)` MUST roll each `BonusDie` of its command (the host merges `SpellRollContributions.bonusDice` with the signed dice of `EffectRiders.RollContributions`) once through `dice.Roll(roller, expr)` (which rejects a result for another expression), in list order, and return `SpellBonusDiceRolled{Modifiers, Rolls}`: one signed `modifier.Modifier` per die (the rolled total, negated for a penalty die) and the rolled `dice.Result`s as evidence. A roller failure returns a nil result and a `*srderr.PortError` (FR-035). The host appends the `modifiers` to the roll with `d20.RollModifiers.WithOthers` (`d20-tests.md` FR-017) and may pass `circumstances` and `modifiers` of the contributions on unchanged. | SRD 5.2.1, "Bless", p. 113; "Bane", p. 112; "Guidance", p. 138 | happy |
+| FR-030 | `RollSpellBonusDice.Run(ctx, cmd)` MUST roll each `BonusDie` of its command (the host merges `SpellRollContributions.bonusDice` with the signed dice of `EffectRiders.RollContributions`) once through `dice.Roll(roller, expr)` (which rejects a result for another expression), in list order, and return `SpellBonusDiceRolled{Modifiers, Rolls}`: one signed `modifier.Modifier` per die (the rolled total, negated for a penalty die) and the rolled `dice.Result`s as evidence. A roller failure returns a nil result and a `*srderr.PortError` (FR-035). The host appends the `modifiers` to the roll with `d20.RollModifiers.WithOthers` (`d20-tests.md` FR-017) and may pass `circumstances` and `modifiers` of the contributions on unchanged. | SRD 5.2.1, "Bless", p. 113; "Bane", p. 112; "Guidance", p. 138 | happy |
 | FR-031 | With no `BonusDie` the use case MUST request no die and return an empty `SpellBonusDiceRolled`. | `doc/rules/testing.md` §4 (empty and minimal) | unhappy (empty and minimal) |
 | FR-032 | A Bane die MUST give a negative `Modifier` of the rolled amount (a d4 showing 3 gives -3). The modified total MAY fall below 1 (`modifiers-and-advantage.md` FR-008). | SRD 5.2.1, "Bane", p. 112; "D20 Tests", p. 6 | unhappy (boundary) |
 | FR-033 | The dice are modifiers of the total. A natural 20 or natural 1 on an attack roll MUST stay judged on the d20 (`d20-tests.md` FR-066): Bless cannot turn a natural 1 into a hit and Bane cannot turn a natural 20 into a miss. | SRD 5.2.1, "Rolling 20 or 1", p. 7 | unhappy (rule interaction) |
@@ -118,7 +129,7 @@ Table R: roll contexts (one test per row; "none" is an empty result). Rows of wi
 
 ### 4.4 Armor Class
 
-`QueryArmorClass(sources, wearsArmor)` returns `SpellArmorClassInputs{FlatBonuses, AlternativeBase, Floor}` (the last two optional: a documented zero value or a (value, ok) accessor). The host passes them to `CalculateDerivedStats` (amendment A1); this spec computes no AC.
+`QueryArmorClass(sources, creature, wearsArmor)` returns `SpellArmorClassInputs{FlatBonuses, AlternativeBase, Floor}` (the last two optional: a documented zero value or a (value, ok) accessor). The host passes them to `CalculateDerivedStats` (amendment A1); this spec computes no AC.
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
@@ -149,7 +160,7 @@ Table A: Armor Class (one test per row; computed AC means base, Shield item and 
 
 ### 4.5 Speed
 
-`QuerySpeeds(sources, MovementSpeeds)` returns `MovementSpeeds`.
+`QuerySpeeds(sources, creature, MovementSpeeds)` returns `MovementSpeeds`.
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
@@ -177,11 +188,11 @@ Table S: Speed (one test per row; walk 30 and fly 60 where stated).
 
 | Id | Requirement | Source | Path |
 |---|---|---|---|
-| FR-061 | `QueryDamageRiders(sources, attacker, target, DamageEvent)` MUST return the Bestow Curse extra damage as a `DiceDamage` component for the host to append to the damage (`attacks.md` FR-057). `DamageEvent` is a closed variant set (interface with an unexported marker method): `AttackRollHitEvent` (a weapon or spell attack roll hit), `SpellDamageEvent` (damage of a spell that uses a saving throw or no roll) and `OtherDamageEvent` (any other damage, such as a trap or an object). A miss produces no event. No rider applies to `OtherDamageEvent`, to damage dealt by a creature other than the caster, or to a creature other than the cursed one. Hunter's Mark and Hex extra damage on an attack roll hit is `EffectRiders.ExtraDamage` (`active-effects.md` FR-049) and not repeated here. | SRD 5.2.1, "Bestow Curse", p. 113; "Spell Attack", p. 188 | unhappy (rule interaction) |
+| FR-061 | `QueryDamageRiders(sources, attacker, target, DamageEvent)` MUST return the Bestow Curse extra damage as a `DiceDamage` component for the host to append to the damage (`attacks.md` FR-057). `DamageEvent` is a closed variant set (interface with an unexported marker method): `AttackRollHitEvent` (a weapon or spell attack roll hit), `SpellDamageEvent` (damage of a spell that uses a saving throw or no roll) and `OtherDamageEvent` (any other damage, such as a trap or an object). A miss produces no event. No rider applies to `OtherDamageEvent`, to damage dealt by a creature other than the caster, or to a creature other than the cursed one. Hunter's Mark and Hex extra damage on an attack roll hit is FR-095. | SRD 5.2.1, "Bestow Curse", p. 113; "Spell Attack", p. 188 | unhappy (rule interaction) |
 | FR-062 | The Bestow Curse die is part of the attack's damage, so on a Critical Hit it is rolled twice by the attack's own rule (`attacks.md` FR-056, FR-057) with no rule here; it has no flat modifier. | SRD 5.2.1, "Critical Hits", p. 16 | unhappy (rule interaction) |
 | FR-063 | Bestow Curse with `CurseExtraDamage` MUST give a `1d8` Necrotic component whenever the caster deals damage to the cursed creature with an attack roll or a spell: for `AttackRollHitEvent` and `SpellDamageEvent` alike. The extra damage is keyed to the (spell, target) source of FR-008. Interpretation: once per attack that hits and once per cast spell that deals damage to the target, not once per damage type or per target hit by an area. | SRD 5.2.1, "Bestow Curse", p. 113 | unhappy (rule interaction) |
 | FR-064 | The Bestow Curse die is Necrotic, fixed by the catalogue. It goes through Resistance, Vulnerability and Immunity as any `Damage` (`hit-points-and-damage.md` FR-019); this spec applies none. | SRD 5.2.1, "Resistance and Vulnerability", p. 17 | unhappy (rule interaction) |
-| FR-065 | `QueryDamageReduction(sources, creature, DamageType, alreadyReducedThisTurn)` MUST return `SpellDamageReduction{Dice: 1d4}` for a Resistance source on that creature whose `ChosenDamageType` equals the damage type and `AlreadyReducedThisTurn` is false; otherwise none. "Once per turn" is the host's flag (the turn is not tracked here). | SRD 5.2.1, "Resistance", p. 158 | unhappy (state error) |
+| FR-065 | `QueryDamageReduction(sources, creature, DamageType, alreadyReducedThisTurn)` MUST return `SpellDamageReduction{Dice: 1d4}` for a Resistance source on that creature whose `ChosenResistanceType` equals the damage type and `AlreadyReducedThisTurn` is false; otherwise none. "Once per turn" is the host's flag (the turn is not tracked here). | SRD 5.2.1, "Resistance", p. 158 | unhappy (state error) |
 | FR-066 | `SpellDamageReduction.ToAdjustment(rolled int) (DamageAdjustment, error)` MUST give a `FlatAdjustment` of `-rolled` scoped to the chosen `DamageType` (amendment A2). It sits in the adjustment step: before Resistance and Vulnerability, floored at 0 (`hit-points-and-damage.md` FR-016, FR-019). `rolled` outside 1..4 MUST return an error that is `errors.Is` `srderr.ErrInvalidInput` (the function never panics). Interpretation (Q3): "reduces the total damage taken" is a reduction of the amount, and p. 17 puts such reductions ("an aura that reduces all damage by 5") before Resistance; with Resistance to the type, 11 damage and a roll of 3 gives 8, halved to 4. The other reading (after Resistance) gives 11 halved to 5, minus 3, is 2. Rolling the d4 is the host's, with `dice.Roller`. | SRD 5.2.1, "Order of Application", p. 17; "Resistance", p. 158 | unhappy (rule interaction) |
 | FR-067 | A creature with Resistance to the chosen type, and the spell Resistance, MUST take the reduction first and then the halving (table D, D5). The spell Resistance is never itself "Resistance" of p. 17 and does not count in "No Stacking". | SRD 5.2.1, "No Stacking", "Order of Application", p. 17 | unhappy (rule interaction) |
 
@@ -197,6 +208,12 @@ Table D: damage (one test per row).
 | D10 | Same; C hits M with a Critical Hit | `1d8` rolled twice by `attacks.md` | p. 113, p. 16 | unhappy (boundary) |
 | D12 | Bestow Curse by C on M; D hits M; C hits another creature; trap damage to M | none each | p. 113 | unhappy (rule interaction) |
 | D13 | `ToAdjustment(0)` and `ToAdjustment(5)` | error (`errors.Is` `srderr.ErrInvalidInput`) | FR-066 | unhappy (invalid input) |
+| D14 | Hunter's Mark by C on M; C hits M with an attack roll | `1d6` Force added | p. 141 | happy |
+| D15 | Hex by C on M; C hits M with an attack roll | `1d6` Necrotic added | p. 140 | happy |
+| D16 | Hex (order 1) and Hunter's Mark (order 0) by C on M; C hits M | Force `1d6`, then Necrotic `1d6` (CastOrder) | p. 140, p. 141 | unhappy (rule interaction) |
+| D17 | Hex and Hunter's Mark; C casts Fireball at M; trap damage to M | none each | p. 140, p. 141 | unhappy (rule interaction) |
+| D18 | Hex and Hunter's Mark by C on M; D hits M; C hits another creature | none each | p. 140, p. 141 | unhappy (rule interaction) |
+| D19 | Hex and Hunter's Mark by C on M; M hits C | none | p. 140, p. 141 | unhappy (rule interaction) |
 
 ### 4.7 Facts that are not resolved
 
@@ -225,7 +242,7 @@ Table D: damage (one test per row).
 
 ### 4.10 Catalogue
 
-Table C: the 12 modelled spells (FR-002, FR-081; one pin test per row). "Subject" is the rolling or affected creature of the source (FR-010). Bless, Bane and the Hex and Hunter's Mark dice are not entries: they are `EffectRiders` (`active-effects.md`). The Hunter's Mark die is a d6; the Ranger's Foe Slayer (SRD 5.2.1, p. 59) makes it a d10. A class-feature die is the host's, set in the template it builds, as `spell-effects.md` Q18 treats class features; no entry here varies.
+Table C: the 14 modelled spells (FR-002, FR-081, FR-096; one pin test per row). "Subject" is the rolling or affected creature of the source (FR-010). Bless, Bane, Hex and Hunter's Mark carry a `SpellModifierRider` (FR-096). The Hunter's Mark die is a d6; the Ranger's Foe Slayer (SRD 5.2.1, p. 59) makes it a d10. A class-feature die is the host's, set in the template it builds, as `spell-effects.md` Q18 treats class features; no entry here varies.
 
 | Label | Spell id, page | Subject | Contribution | Facts (FR-070) | Requirement |
 |---|---|---|---|---|---|
@@ -233,22 +250,37 @@ Table C: the 12 modelled spells (FR-002, FR-081; one pin test per row). "Subject
 | C2 | `bestow_curse`, pp. 112-113 | target | one of: Disadvantage on checks and saves with a chosen ability; Disadvantage on attacks against the caster; extra 1d8 Necrotic; forced Dodge | `ForcedDodgeUnlessWisdomSave` | FR-020, FR-063 |
 | C3 | `guidance`, p. 138 | target | +1d4 on checks with the chosen skill | none | FR-016 |
 | C4 | `haste`, p. 139 | target | Speed x2, AC +2, Advantage on Dexterity saves | extra action, lethargy | FR-017, FR-040, FR-051 |
-| C5 | `hex`, p. 140 | target | none here (die and check Disadvantage are riders) | mark moves | FR-070 |
-| C6 | `hunters_mark`, p. 141 | caster | Advantage on Wisdom (Perception or Survival) to find it (die is a rider) | mark moves | FR-021, FR-070 |
+| C5 | `hex`, p. 140 | target | rider: Disadvantage on checks with the chosen ability, extra `1d6` Necrotic | mark moves | FR-094, FR-095, FR-070 |
+| C6 | `hunters_mark`, p. 141 | caster | Advantage on Wisdom (Perception or Survival) to find it; rider: extra `1d6` Force | mark moves | FR-021, FR-095, FR-070 |
 | C7 | `longstrider`, p. 145 | target | Speed +10 | none | FR-050 |
 | C8 | `mage_armor`, p. 145 | target | base AC 13 + Dexterity, no armor | ends if armor donned | FR-041 |
 | C9 | `resistance`, p. 158 | target | -1d4 damage of the chosen type, once per turn | none | FR-065 |
 | C10 | `shield`, pp. 161-162 | target | AC +5 | no damage from Magic Missile | FR-040, FR-044, FR-070 |
 | C11 | `shield_of_faith`, p. 162 | target | AC +2 | none | FR-040 |
 | C12 | `slow`, p. 163 | target | Speed halved, AC -2, Dexterity saves -2 | no reactions, one action, one attack, 25% spell failure | FR-018, FR-040, FR-052 |
+| C13 | `bane`, p. 112 | target | rider: -1d4 (a penalty die) on attack rolls and saving throws, Death Saving Throws included | none | FR-093 |
+| C14 | `bless`, p. 113 | target | rider: +1d4 on attack rolls and saving throws, Death Saving Throws included | none | FR-093 |
 
 ### 4.11 Withdrawn ids
 
 | Id | Reason |
 |---|---|
 | FR-003 to FR-006 | Combining Spell Effects is `active-effects.md` FR-015 to FR-019 (shared-types-and-ownership.md FR-048); FR-008 replaces them |
-| FR-011, FR-012, FR-015, FR-019 | Bless, Bane dice and Hex check Disadvantage are `EffectRiders.RollContributions` (`active-effects.md` FR-048, FR-050) |
-| FR-060 | Hunter's Mark and Hex extra damage is `EffectRiders.ExtraDamage` (`active-effects.md` FR-049) |
+| FR-011, FR-012, FR-015, FR-019 | Bless, Bane dice and Hex check Disadvantage: superseded by FR-093 and FR-094 (the riders are owned here, not by `active-effects.md` FR-048, FR-050, which it withdrew) |
+| FR-060 | Hunter's Mark and Hex extra damage: superseded by FR-095 (owned here; `active-effects.md` FR-049 was withdrawn) |
+
+### 4.12 Effect riders: Bless, Bane, Hex and Hunter's Mark
+
+Decision (settled after the plan audit, which found that `active-effects.md` withdrew FR-048 to FR-050 in favour of this spec and this spec withdrew FR-011, FR-012, FR-015, FR-019 and FR-060 in favour of that one, so no live requirement produced them): **this spec owns the riders.** A rider is a value of the catalogue entry (`SpellModifierRider`, read through `SpellModifierEntry.Rider()`), and the existing queries read it: `QueryRollContributions` for the dice and the Disadvantage, `QueryDamageRiders` for the extra damage. No new query exists and no new source field: Hex still holds its `ChosenAbility` and Hunter's Mark its marked creature as the source's `target`. The wording of the four spells is SRD 5.2.1's: Bless "adds 1d4 to the attack roll or save" (p. 113, in `content/data/spells.json`); Bane subtracts 1d4 from them (p. 112); Hex deals an extra 1d6 Necrotic damage "whenever you hit it with an attack roll" and gives Disadvantage on ability checks with the ability the caster chose (p. 140); Hunter's Mark deals an extra 1d6 Force damage "whenever you hit it with an attack roll" (p. 141, in the data).
+
+| Id | Requirement | Source | Path |
+|---|---|---|---|
+| FR-093 | Bless MUST add one `1d4` `BonusDie` and Bane one negative `1d4` `BonusDie` (`NewBonusDie(expr, true)`) to every `AttackRollContext` whose `Attacker`, and every `SavingThrowContext` and `DeathSavingThrowContext` whose `Creature`, is the source's `target`, and to nothing else: no ability check, no roll of another creature, no roll made against the creature. Bless and Bane on one creature each give their own die, in ascending `CastOrder` (FR-023); one source gives one die however many d20s the roll has (FR-014). The die is a modifier of the total (FR-033); a Death Saving Throw keeps its natural 20 and 1 rules (FR-013). | SRD 5.2.1, "Bless", p. 113; "Bane", p. 112; "Death Saving Throws", p. 17 | happy; unhappy (rule interaction) |
+| FR-094 | Hex MUST add one `Disadvantage` to an `AbilityCheckContext` of the source's `target` whose `Ability` equals the source's `ChosenAbility`, with or without a skill, and to no saving throw, attack roll or Death Saving Throw, and not to the caster's own check. | SRD 5.2.1, "Hex", p. 140 | unhappy (boundary) |
+| FR-095 | `QueryDamageRiders` MUST return, for `AttackRollHitEvent` only, a `1d6` Necrotic `DiceDamage` for an active Hex and a `1d6` Force `DiceDamage` for an active Hunter's Mark whose `caster` is the attacker and whose `target` is the damaged creature, once per source, in ascending `CastOrder` together with the Bestow Curse component of FR-063; never for `SpellDamageEvent` (the SRD says "attack roll"), `OtherDamageEvent`, another attacker or another target. Like FR-062 the die is part of the attack's damage, so a Critical Hit doubles it and Resistance, Vulnerability and Immunity apply to it as to any damage. A class-feature die (Foe Slayer, p. 59) is the host's, as in section 4.10. | SRD 5.2.1, "Hex", p. 140; "Hunter's Mark", p. 141; "Critical Hits", p. 16 | happy; unhappy (rule interaction) |
+| FR-096 | The catalogue entries of `bane`, `bless`, `hex` and `hunters_mark` MUST carry their rider (`SpellModifierEntry.Rider()`: the signed die, Hex's check Disadvantage, the extra damage), every other entry the zero rider, and the catalogue is 14 spells (table C rows C13, C14). A rider is data of the entry: the zero `SpellModifierRider` adds nothing, and `RollDie`, `ExtraDamage` and `CheckDisadvantage` answer for it. | SRD 5.2.1, spell entries pp. 112-141 | happy; unhappy (rule interaction) |
+| FR-097 | Every `Query*` function MUST return a `LimitExceededError` (matching `srderr.ErrInvalidInput`, `String()` the shared value `limit_exceeded`) for a list that holds more than 64 sources on one creature (plan P10: the effects that grant the modifiers, 64 per creature); sources on other creatures do not count. | Plan P10 (design number, not an SRD rule) | unhappy (boundary) |
+
 
 ## 5. Model
 
@@ -275,7 +307,7 @@ Domain functions are synchronous and pure and take no `context.Context`. The use
 type RollSpellBonusDice struct{ /* roller, telemetry */ }
 
 func NewRollSpellBonusDice(roller dice.Roller, opts ...Option) (RollSpellBonusDice, error)
-func (u RollSpellBonusDice) Do(ctx context.Context, cmd RollSpellBonusDiceCommand) (RollSpellBonusDiceResult, error)
+func (u RollSpellBonusDice) Run(ctx context.Context, cmd RollSpellBonusDiceCommand) (RollSpellBonusDiceResult, error)
 ```
 
 
@@ -308,6 +340,7 @@ Entries feed `doc/observability/signals.md`; the two `result` values are added t
 |---|---|---|
 | FR-001 to FR-007 | unit | Wrong choice variants return an error; unknown spell id is `SpellModifiersNotModelled`; R15, R21, A2, S6; FR-008: two sources with the same spell and target return `ErrDuplicateSource`, two different spells with equal `CastOrder` are accepted; negative `CastOrder` returns an error; empty list neutral; input list unchanged. |
 | FR-010 to FR-024 | unit | Table R one test per row; Advantage plus Disadvantage cancelling is asserted at `modifier.Resolve` over the returned circumstances; list order by `CastOrder`; immutability. |
+| FR-093 to FR-097 | unit | Tables R22 to R31 and D14 to D19 one test per row (`spell_modifier_rider_test.go`), R3 for the Bless die on a Death Saving Throw; the catalogue pin of the four riders and the ten empty ones; the cap of 64 sources per creature at the cap and cap plus one for each query. |
 | FR-030 to FR-035 | application | `dicetest.FixedRoller`: dice requested in list order, negative modifier for Bane, empty input requests nothing, natural 1 with Bless still a miss and natural 20 with Bane still a hit through the real `d20.Resolver`, a roller failure is returned as a `*srderr.PortError` with no partial result, equal results for equal sequences. |
 | FR-040 to FR-046 | unit | Table A one test per row, including the A10 and A11 `ReevaluateAttack` rows; Mage Armor with and without armor; floor applied last (A6, A7); negative AC allowed. |
 | FR-050 to FR-056 | unit | Table S one test per row against the real `MovementSpeeds`; order of operations (S5, S6). |
@@ -317,7 +350,7 @@ Entries feed `doc/observability/signals.md`; the two `result` values are added t
 | FR-090 to FR-092 | application | Recording `telemetrytest` doubles through the combat telemetry helper: one span, one `operations` increment with result `rolled` or `nothing_to_roll`, one duration; error counted once and not logged; no `events`; identical result with the no-op. |
 | errors-and-results.md FR-031, FR-034, FR-051 | application | The roller failure of FR-035 is returned wrapped once as a `*srderr.PortError` with no partial result (`errors.Is` the original cause); the recorded failure's `error.type` is `srderr.ErrorType(err)` (FR-091); a telemetry backend panic propagates uncounted (FR-051). |
 
-- **Levels:** unit (`combat/spell_modifier*_test.go`, package `combat_test`), application (`combat/roll_spell_bonus_dice_usecase_test.go`), architecture (`internal/archtest`), one scenario. Fuzz: none (no parser). No contract suite (no port).
+- **Levels:** unit (`combat/spell_modifier*_test.go`, package `combat_test`), application (`combat/roll_spell_bonus_dice_usecase_test.go`), architecture (`internal/archtest`), one scenario. Fuzz: `FuzzNewSpellModifierSource` (a constructor of ids, an order and a choice from untrusted values; the plan's process contract). No contract suite (no port).
 - **Doubles:** `dicetest.FixedRoller`, the recording `telemetrytest` doubles, the real `d20.ResolveAttack`, `MovementSpeeds` and damage pipeline. No mocks of the domain.
 - **Scenario (`scenarios/`, package `scenarios_test`, public API only):** a blessed, hasted character with Shield of Faith attacks a creature marked by Hunter's Mark: bonus dice rolled, the Advantage and Disadvantage resolved, a Critical Hit doubling the rider, the target's Shield spell turning a later hit into a miss.
 - **Mutation testing (`doc/rules/testing.md` §8):** the `spell_modifier*.go` files at score >= 80, run with `gomu` only inside Docker with `--cpus` and `--workers` capped at a quarter of the host processors. Most valuable: the duplicate guard of FR-008, the floor order of FR-042, the speed order of FR-053, the context filters of FR-016 and FR-020.
@@ -334,6 +367,7 @@ No question is escalated. Package decisions (changing any is **BREAKING** once r
 - **Q5 (settled): bonus dice rolled before the d20** (FR-034): the SRD fixes no order; rejected alternative: rolling after the d20 through `AdjustedBy`, which would need every use case to hand back control mid-roll.
 - **Q6 (settled): Speed order** (FR-053, not derived from p. 17) and Bestow Curse extra damage once per attack or spell (FR-063): interpretations stated in the requirements.
 - **Q7 (settled): spells not in table C** return `SpellModifiersNotModelled` (FR-002), never an error. Adding a spell to the catalogue is a new row and a pin test, not a breaking change.
+- **Q8 (settled): the riders of Bless, Bane, Hex and Hunter's Mark are owned here** (section 4.12, FR-093 to FR-097), not by `active-effects.md`: the numeric contributions to rolls and damage are this spec's everywhere else (Guidance, Bestow Curse), the catalogue already holds Hex's ability and the Hunter's Mark mark, and the lifecycle owner needs no roll or damage type. Rejected: an `EffectRiders` type in `active-effects.md` (a second place for the same queries, and a dependency of equal rank).
 
 ### Amendments requested of other specs (not edited here)
 
@@ -345,8 +379,15 @@ No question is escalated. Package decisions (changing any is **BREAKING** once r
 | A4 | `shared-types-and-ownership.md` | Table 4.11 row 28 lists `encounter-aggregate`: add `active-effects` and `spell-granted-modifiers` to it (all three equal rank, none depends on another) | FR-056 |
 | A5 | `spell-effect-data.md`, `spell-effects.md` | E16 and Q11 point to `active-effects.md` (lifecycle, riders) and this spec (numeric modifiers) | Ownership |
 | A6 | `active-effects.md` | Mention in its Depends-on-free note that `SpellModifierSource`s are mapped from `EffectCombination.Applying` results (FR-008 here); no dependency either way | Lifecycle boundary |
-| A7 | `active-effects.md` | `BonusDiceRider` saving-throw rolls include a Death Saving Throw (FR-013); Hunter's Mark advantage on Perception/Survival to find the mark stays here (FR-021), not a rider | One owner |
+| A7 | `active-effects.md` | Its riders (FR-048 to FR-052) are withdrawn in favour of FR-093 to FR-096 here; the Death Saving Throw (FR-013) and Hunter's Mark's Perception/Survival Advantage (FR-021) are here too | One owner |
 
 ## 10. Changelog impact
 
 Under `Unreleased`, **Added:** spell-granted modifiers (the `Query*` functions, the catalogue (`LookupSpellModifiers`) for Barkskin, Bestow Curse, Guidance, Haste, Hex, Hunter's Mark, Longstrider, Mage Armor, Resistance, Shield, Shield of Faith, Slow), `RollSpellBonusDice`, the `srd5e.combat.roll_spell_bonus_dice` span and the `rolled` and `nothing_to_roll` result values (added to `doc/observability/signals.md`). Not **BREAKING** while unreleased. After the first release, changing a table C figure other than to fix a transcription error, or renaming a signal or export, is **BREAKING**.
+
+### Implementation status
+
+- **Implementation status.** Implemented in package `combat`. Every live requirement id of section 4 (FR-001, FR-002, FR-007, FR-008, FR-010, FR-013, FR-014, FR-093 to FR-097, FR-016 to FR-018, FR-020 to FR-024, FR-030 to FR-035, FR-040 to FR-046, FR-050 to FR-056, FR-061 to FR-067, FR-070, FR-071, FR-080 to FR-084, FR-090 to FR-092) is T and has a test; there is no D id. Pure and silent files: `spell_modifier_source.go` (the source, its choices and `ErrDuplicateSource` checks), `spell_modifier_catalogue.go` (table C as a `switch`), `spell_modifier_fact.go`, `spell_modifier_roll.go` (`RollContext`, `BonusDie`, `QueryRollContributions`), `spell_modifier_armor_class.go` (`QueryArmorClass`, `ReevaluateAttack`), `spell_modifier_speed.go`, `spell_modifier_damage.go`; use-case file `roll_spell_bonus_dice_usecase.go`. Tests sit beside each file, plus `internal/archtest/combat_spell_modifiers_test.go` and `scenarios/spell_modifiers_test.go`. `ErrDuplicateSource` is declared in `invalid_input.go`, so no `spell_modifier*.go` file names `srderr`.
+- **Package decisions where the spec was silent or its names clash** (changing any is **BREAKING** once released): the use case method is `Run`, like every other `combat` use case (the draft said `Do`); the Resistance choice variant is `ChosenResistanceType`, because `ChosenDamageType` is exported by `content` (attacks.md FR-123, archtest); `QueryArmorClass` and `QuerySpeeds` take the affected `creature` after the sources (the draft had none), so a list that holds the sources of several creatures never applies one creature's spell to another (FR-010), and the three queries that already named a creature keep it; `QueryRollContributions` returns an error for a nil or invalid `RollContext` (a zero creature, an invalid ability or skill); Hex requires `ChosenAbility` (its rider needs the ability) and a spell that is not modelled takes any valid choice; `ToAdjustment` returns the concrete `FlatAdjustment`; `RollSpellBonusDiceCommand` is a keyed struct with `Dice []BonusDie` (the host merges `SpellRollContributions.BonusDice` with the signed dice of its other sources) and `BonusDie` has `NewBonusDie` and `MustBonusDie`; `SpellArmorClassInputs.AlternativeBasis` builds the `character.AbilityBasedArmorClassBasis` of Mage Armor (base 13, Dexterity, a Shield allowed) and its bonuses are `character.FlatBonus`es from `SpellFlatBonusSource`; a `SpellModifierEntry` also exposes `Page` (the SRD page that FR-081 pins); the signal constants are unexported like every `combat` constant; the duplicate check is one pass with a set, so a query is O(n log n) in the number of sources. No function returns a `CombatantID`: a source answers `CasterIs` and `TargetIs`.
+- **Riders (decided and built).** The riders had no owner (this spec and `active-effects.md` each withdrew them in favour of the other); the decision is that this spec owns them (section 4.12, Q8). Built in `spell_modifier_rider.go` (`SpellModifierRider`: `RollDie`, `ExtraDamage`, `CheckDisadvantage`, `IsZero`) and read by `QueryRollContributions` (`spell_modifier_roll.go`: Bless's `+1d4` and Bane's `-1d4` on attack rolls, saving throws and Death Saving Throws, Hex's Disadvantage on checks with its `ChosenAbility`) and `QueryDamageRiders` (`spell_modifier_damage.go`: Hex's `1d6` Necrotic and Hunter's Mark's `1d6` Force on a hit with an attack roll); the catalogue is 14 spells (`bane`, `bless` added; `SpellModifierEntry.Rider()`). FR-013 is now met from both sides: the Bless die reaches a Death Saving Throw through `QueryRollContributions` (R3) and `RollSpellBonusDice` rolls it into `MakeDeathSavingThrow`'s `Modifier`. Tests: `spell_modifier_rider_test.go`; the scenario of section 8 now takes its Bless die from a Bless source. Spells that were the "not modelled" examples of the tests (Bane, Bless) are now Fireball and Sleep.
+- Not yet implemented: none. The P10 cap is built (FR-097: 64 sources per creature; `checkSources` counts them in the one pass it already makes, so a query stays O(n log n)) and tested at the cap and cap plus one; the riders are built (above). The wiring of the queries into one action stays with the host, which `combat-action-resolution.md` leaves to it (its commands take the resulting modifiers, circumstances and damage as plain values), as does the mapping from `EffectCombination.Applying` results to sources (FR-008); amendments A1 to A3 are met by `character` (`FR-080`, `FR-081` of derived-stats), `FlatAdjustment`'s `DamageScope` and `MovementSpeeds.Doubled`, and A4 to A7 are edits to other specs that were made. Mutation testing: mutation skipped at user request; no mutation score.

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | partially implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `hit-points-and-damage.md`, `magical-effects.md`, `content-monsters.md`, `content-schema-and-decoder.md`, `d20-tests.md` |
@@ -376,7 +376,7 @@ No question is escalated. **Settled** (one line each; research summarised, nothi
 
 - Q-1 The form's "Hit Points" are the printed average of its stat block (interpretation; SRD p. 255 gives the average as the standard value and `content-monsters.md` stores it).
 - Q-2 Polymorph ends the moment Temporary Hit Points are 0 and the excess already reduced the retained Hit Points (FR-032, FR-033) (interpretation: the SRD wording "Lose Temporary Hit Points First", p. 18, supports this, and community discussion agrees).
-- Q-3 Dropping to 0 Hit Points does not itself end Shapechange, Animal Shapes or True Polymorph (interpretation): their text ends them by death or destruction (p. 170) or never, and Shape-Shifting reverts the creature only if it dies (p. 187); the target stays shifted and Unconscious per `hit-points-and-damage.md`. Polymorph cannot reach 0 first (FR-032).
+- Q-3 Dropping to 0 Hit Points does not itself end Shapechange, Animal Shapes or True Polymorph (interpretation): their text ends them by death or destruction (p. 170) or never, and Shape-Shifting reverts the creature only if it dies (p. 187); the target stays shifted and Unconscious per `hit-points-and-damage.md`. Polymorph cannot reach 0 first (FR-032). Tested for a living target (Stable or Dying) at 0 current Hit Points: `TestAssessForALivingTargetAtZeroHitPoints` (True Polymorph, Shapechange and Animal Shapes continue; Polymorph ends only with `FormHitPointsDepleted`, that is only without Temporary Hit Points) and `TestEndAndElapseForALivingTargetAtZeroHitPoints` (`End` and `ElapseFullDuration` still work), in `shape_shift_temporary_hit_points_test.go` and `shape_shift_end_test.go`. An Alive creature cannot hold 0 Hit Points (`RestoreHitPointStatus`), so Dying and Stable are the living states at 0.
 - Q-4 A second shape-shifting spell replaces the first (FR-026): one true form (`magical-effects.md` Q-13); the earlier spell "ends", so its form Temporary Hit Points vanish first.
 - Q-5 "Level" is total character level, 1 to 20 (FR-008), because the SRD calls Multiclassing's sum the character level (p. 25); monsters always have a Challenge Rating.
 - Q-6 Shapechange carries no anatomy, speech or casting limit (FR-004): the SRD text states none and retains communication and Spellcasting; adding one would be an invented rule.
@@ -399,3 +399,20 @@ pointers in `magical-effects.md` (section 1 out of scope, 4.8 intro, noting this
   statistics, Temporary Hit Points, ending and True Polymorph permanence;
   `doc/specs/shape-changing-spells.md`).
 - **BREAKING:** no. Everything is new.
+
+## 11. Implementation status
+
+**Implementation status.** Implemented in package `combat` as pure domain code, with no use case, no port and no signal (section 7: the use cases of RA-1 were added later, by step 10b). Files: `combat/shape_shift_spell.go` (`ShapeShiftSpell`, `ShapeShiftProfile`, the enums), `combat/shape_shift_statistics.go` (table B), `combat/shape_shift_form.go` (`FormFacts`, `AssumedForm`, `TargetRating`, `ObjectFacts`), `combat/shape_shift_eligibility.go` (table E1), `combat/shape_shift_transformation.go` (`ActiveTransformation` and its constructor), `combat/shape_shift_target.go` (`TargetResponse`, `TargetHitPoints`, `AnimatedObjectTerms`), `combat/shape_shift_rejection.go`, `combat/shape_shift_begin.go`, `combat/shape_shift_change.go`, `combat/shape_shift_end.go` (`End`, `ElapseFullDuration`, `Assess`), `combat/shape_shift_event.go` and `combat/shape_shift_service.go` (`ShapeShiftSpells`), each with its `*_test.go` in package `combat_test`; `combat/shape_shift_temporary_hit_points_test.go` holds table T; `combat/shape_shift_fuzz_test.go` (`FuzzNewRatedByLevel`, `FuzzNewCreatureForm`, `FuzzNewActiveTransformation`) and `combat/shape_shift_example_test.go`. `internal/archtest/combat_shape_shift_test.go` covers FR-056 (the four events) and FR-057 (import direction, names); `scenarios/shape_shift_test.go` is the scenario of section 8. Every table row (E1, R, T, X) has one test case.
+
+Reading choices, none of which changes a requirement:
+
+- Go names. The Go names that differ from section 3 are prefixed so they do not clash with other `combat` names: `PolymorphSpell`, `TruePolymorphSpell`, `ShapechangeSpell`, `AnimalShapesSpell`; `TemporaryFromForm`, `TemporaryNotGranted`, `TemporaryDeclined`, `TemporaryReplaced` (the spec's `declined` is exported); the causes `CauseDurationElapsed` to `CauseReplaced` (`Replaced` is both a cause and a provenance); `EndTargetIsDead` for the enum member of `EndShapeShiftRejection` (`TargetIsDead` is the type of the other two sets); `FormCannotSpeak`, `FormCannotCast`, `FormAbilityToCommunicateRetained`, `FormSpellcastingFeatureRetained`, `FormNoSpellcastingFeature`. The rejections carry a `String()` with the snake_case name of section 7. `ShapechangeTerms` is an enum whose zero value is `StandardShapechange`. `NoTransformation` is the zero `ActiveTransformation` (`IsZero`). No function returns a bare `CombatantID` (`TestCombatDoesNotGenerateIDs`), so `ActiveTransformation`, the events and `AnimatedObjectTerms` give their ids through `Parties()` and `Combatants()`.
+- One `Rating` field on the commands serves both `TargetRating` and the caster's rating for Shapechange: Polymorph and True Polymorph read the target's, Shapechange the caster's, and the three other readings need none. `HoldsSpellcastingFeature` (FR-005) is a field of `BeginShapeShiftCommand` and a parameter of `RestrictionsOf`; `StatisticsOf` lists the Spellcasting feature of Shapechange as kept "if held".
+- `Begin`, `ChangeForm` and `End` take the Hit Point side as `TargetHitPoints` (`TrackedHitPoints` or `UntrackedHitPoints{Life}`, FR-030): a Dead target needs a life state even when no status is tracked. `TrackedHitPoints` is accepted wherever `UntrackedHitPoints` is.
+- FR-036: an equipment choice set for a spell other than Shapechange is also an `srderr.ErrInvalidInput` (the outcome of the other spells is fixed), as FR-061 says for Animal Shapes.
+- FR-042: a permanent transformation is always True Polymorph, which FR-039 refuses first as `FormChangeNotAllowed` in the order of FR-060, so `NotTransformed` is reached only with no transformation.
+- FR-046: the event of a True Polymorph made permanent reports `ControlLost` for an object turned into a creature only; for the other modes it is false.
+- FR-048: `CauseTargetDestroyed` ends any transformation, as `CauseTargetDied` does; the spec names only the object cases.
+- An `EndedByTarget` on a permanent transformation is `EndShapeShiftUnaffected` (FR-046 names it), not a refusal.
+
+Not yet implemented: the FR-002 oracle for True Polymorph, Shapechange and Animal Shapes (D-1: the bundled slice holds Polymorph only, so the level, Concentration and duration of the other three rows of table A are checked against the spec's table, not against a bundled `Spell`; add the three entries to `content/data` and extend `TestShapeShiftProfileMatchesTheBundledSpell`). The use cases of amendment RA-1 (`begin_shape_shift`, `change_shape_shift_form`, `assess_shape_shift`, `end_shape_shift`) and their section 7 results were built by `combat-action-resolution.md` step 10b (`combat/shape_shifting_usecase.go`, tested in `combat/wired_usecase_test.go`). No mutation score is recorded (mutation testing is skipped for Phase 4 at user request).

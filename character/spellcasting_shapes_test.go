@@ -43,17 +43,17 @@ func TestConcentration(t *testing.T) {
 	}
 }
 
-// Requirement: doc/specs/spellcasting.md FR-148, FR-149 - CastSource has six values, scroll and duplicated
+// Requirement: doc/specs/spellcasting.md FR-148, FR-149 - CastSource has seven values, scroll, duplicated and monster
 // included.
 // Path: happy.
 func TestCastSourceNames(t *testing.T) {
 	t.Parallel()
-	for i, n := range []string{"slot", "cantrip", "ritual", "feature_granted", "scroll", "duplicated"} {
+	for i, n := range []string{"slot", "cantrip", "ritual", "feature_granted", "scroll", "duplicated", "monster"} {
 		if got := character.CastSource(i + 1).String(); got != n {
 			t.Errorf("CastSource(%d) = %q, want %q", i+1, got, n)
 		}
 	}
-	if character.CastSource(0).String() != "unknown" || character.CastSource(7).String() != "unknown" || character.CastSourceScroll != 5 || character.CastSourceDuplicated != 6 {
+	if character.CastSource(0).String() != "unknown" || character.CastSource(8).String() != "unknown" || character.CastSourceScroll != 5 || character.CastSourceDuplicated != 6 || character.CastSourceMonster != 7 {
 		t.Error("CastSource bounds")
 	}
 }

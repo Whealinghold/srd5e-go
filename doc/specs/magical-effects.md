@@ -2,12 +2,25 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `conditions.md`, `attacks.md`, `hit-points-and-damage.md`, `content-schema-and-decoder.md`, `spell-effect-data.md` |
 | Referenced, not imported | `casting-and-concentration.md` (owner of Concentration, FR-075 to FR-079, FR-099; the host passes its results and events); `magic-item-rules.md` (owner of Attunement, FR-054, FR-117); `hiding-searching-and-senses.md` (takes `IllusionTraits.DeceivesSight` as a plain boolean, its FR-095); `toolbox-curses-and-contagions.md` (downstream, `shared-types-and-ownership.md` FR-045: imports `CurseRemovalMeans`, `PossessionPrevention`, `PossessionEnding` from here); `spell-effects.md` (reads `AreaMembership.Assess`, its FR-015); `telepathy.md`, `returning-to-life.md`, `readying-a-spell.md` (split out of this spec); `rules-glossary-coverage.md` (names this spec as owner of GL-008b, GL-034b, GL-040, GL-050b, GL-084, GL-099, GL-112a, GL-117b, GL-125, GL-127, GL-144, GL-145b) |
 | Consumed by | `combat-action-resolution.md` (amendment RA-1), `hiding-searching-and-senses.md` (its FR-095), `toolbox-curses-and-contagions.md` |
+
+**Implementation status.** Implemented in package `combat` as pure, silent domain code, with the five use cases of RA-1 added in `magical_effects_usecase.go` (FR-148): every live id of section 4 is T and has a test (FR-001 to FR-010, FR-013, FR-014, FR-016 to FR-033, FR-037, FR-039, FR-042 to FR-064, FR-066 to FR-070, FR-091 to FR-096, FR-143 to FR-145, FR-147, FR-148). Files: `magical_effect_source.go` (`EffectSource`), `ongoing_effect.go` (`OngoingEffect`, `OngoingEffects`), `area_origin.go` (`ConeWidthAt`, `OverridableAreaShape`, `OriginInclusionDecision`, `EmanationEffectTiming`, `OriginPlacement`, `AreaOrigin`), `area_membership.go` (`AreaMembership` and the location facts), `curse_removal.go`, `possession.go`, `illusion.go`, `shape_shifting.go`, `teleportation.go`, `simultaneous_effects.go` and `magical_effect_event.go` (the four events) and `magical_effects_usecase.go` (the five use cases); tests are named after them and `internal/archtest/combat_magical_effects_test.go` enforces the silent domain, the import edges of FR-143, the `DepartureMeans` name scan of FR-064 (FR-064 has no unit test, as section 8 says), the four-member event family and the export list. Decisions made while implementing:
+- **The five use cases (RA-1, FR-148).** `RemoveCombatantCurse` (`remove_combatant_curse`, wraps `CurseRemoval.Remove`), `ShiftCombatantShape` (`shift_combatant_shape`, wraps `ShapeShifting.Shift`, `.Revert` and `.RevertOnDeath` through the request variants `ShiftRequest`, `RevertRequest` and `RevertOnDeathRequest`), `TeleportCombatant` (`teleport_combatant`, wraps `Teleportation.Resolve`), `ResolveEffectOrder` (`resolve_effect_order`, wraps `SimultaneousEffects.Order`) and `AssessAreaLocation` (`assess_area_location`, wraps `AreaMembership.Assess` and `AreaOrigin.Resolve` through `AssessMembershipRequest` and `ResolveOriginRequest`). Each is built by `NewX(opts...)` (`WithTelemetry`, `WithClock`), has one `Run(ctx, cmd)`, runs in one `CombatTelemetry` operation, returns the owner's closed result unchanged (the use cases that wrap several services declare a closed result of the owners' own variants and no wrapper, as `ChangeTelepathicContact` does), takes no Encounter and no ledger, rolls no die and calls no port. The pure files stay silent; the signals are in `magical_effects_usecase.go` and `signals.go`. A nil or unknown request, the zero command a service rejects and an undefined `OriginPlacement` (the owner's zero `AreaOriginResolution`) are errors matching `srderr.ErrInvalidInput`, recorded on the span only. No class feature is involved: the "class" of FR-144 is the result class of section 7, so no `character` code is used.
+- **Go names.** `ConeArea.WidthAt` is the function `ConeWidthAt(cone content.ConeArea, distance int)` (package `combat` cannot add a method to a `content` type). `OrderingAuthority.ForTurnHolder` is `SimultaneousEffects.AuthorityFor`. `TrueForm` and `ShiftedForm(effect)` are a function and a constructor over the struct `ShapeShiftState` (its zero value is `TrueForm()`). The containment values `InsideShape` and `OutsideShape` keep their names; the exclusion reasons are `ExcludedOutsideShape`, `ExcludedAllLinesBlocked` and `ExcludedOrigin` (one package cannot declare `OutsideShape` twice). `MagicItemSource` takes a `content.MagicItemID`, the id type of magic items (`ItemID` is the equipment id). `CurseRemovalMeans` has the three values `RemoveCurseSpell`, `GreaterRestorationSpell` and `OtherCurseEndingMagic` (table 4.5a's `RemoveCurse` and `GreaterRestoration` rows are the first two; `RemoveCurse` is the operation's name). `PossessionPrevention` and `PossessionEnding` are enums with the values of section 3.
+- **Shapes of inputs.** `OverridableAreaShape` has four variants with an exported `Area` field each, so a Cylinder or Sphere override cannot be written; an invalid (zero) shape is rejected by `ShapeDefaultOrigin` and `CreatorIncludesOrigin`. `AreaMembership.Assess` takes `AreaLocationFacts`, either `OriginLocationFacts` (built from an `OriginInclusionDecision`, FR-024) or `OtherLocationFacts` (containment and the `Cover` of each line, copied, FR-026). Facts that are nil or the zero value, like an inside location with no lines, give `AreaMembershipNoLinesConsidered` (class `invalid`). `TeleportCommand` is built by `NewTeleportCommand(TeleportFields)`, which holds the FR-063 cost check; `Resolve` returns an error matching `srderr.ErrInvalidInput` for a command not built by it. `Shift` and `Revert` take a command struct and return an error matching `srderr.ErrInvalidInput` for a zero creature (and, for `Shift`, the zero effect source). `RevertOnDeath` takes the `LifeState`; only a `Dead` with a valid cause counts as Dead.
+- **Order of checks.** `Resolve` checks the touched set first (FR-068, malformed input), then sight (FR-061), then placement. `RevertOnDeath` answers `RevertOnDeathNotDead` for a creature that is not Dead whatever its form (FR-055), then Applied (FR-054). In `CarryOverExcept` the named conditions are removed in the order given except that Unconscious goes first, because removing it leaves the creature Prone (`conditions.md` D-7) and a named Prone must then go too. A repeated name is listed once.
+- **Additions to section 7.** `ShapeShifting.Revert` can also refuse a rule that names what is not held (FR-052 uses the semantics of FR-049): `RevertToTrueFormExceptionNotHeld`, result `shift_exception_not_held`, class `refused`. `OrderSimultaneousEffectsRejected` also reports an undefined `TurnHolder` as the problem `OrderProblemUnknownTurnHolder` (class `invalid`). The class of every result value is recorded by the RA-1 use cases; the pure code returns the variants and no class.
+- **RA-4 and RA-5.** `spell-effect-data.md` FR-014 already says the creator's decision is `magical-effects.md` FR-016 and `casting-and-concentration.md` Table K already has the row for 62 (K12); no edit was needed. RA-1 is built (below).
+
+**Limits (plan P10; design numbers, not SRD rules).** `NewTeleportCommand` reads at most 256 touched creatures, `NewOtherLocationFacts` at most 256 lines, `SimultaneousEffects.Order` at most 256 pending and 256 chosen ids, and `NewOngoingEffects` at most 64 effects (a creature's effects list is its effects, so it takes the cap of effects per creature, 64; no separate list of 256 effects exists in this spec). Over a cap the constructor returns a `LimitExceededError` (matching `srderr.ErrInvalidInput`, `String()` the shared result value `limit_exceeded`) before it reads an element; `Order` returns `OrderSimultaneousEffectsRejected` with the one problem `OrderProblemLimitExceeded`, which `ResolveEffectOrder` records as the invalid result `limit_exceeded`. The inputs are not changed. `magical_effects_limit_test.go` tests each cap at the cap and at cap plus one (and the use case row in `magical_effects_usecase_test.go`). `ReviveCombatant` no longer needs its own check of the held `Effects` list: `NewOngoingEffects` cannot build more than 64. `NewCarryOverExcept` reads at most 256 condition kinds ("carry-over conditions") and at most 256 effect ids ("carry-over effect ids"), and `NewIllusionTraits` at most 256 senses ("illusion senses"), each before it reads an element and with the same `LimitExceededError`; `input_list_limit_test.go` tests each at the cap and at cap plus one.
+
+Not yet implemented: none; no D id is open (FR-148 and the class of each rejection result of FR-144 are built, see the decision above and section 8; the P10 caps are built and tested, see Limits). Mutation testing: mutation skipped at user request; no mutation score. Statement coverage of `combat` 98 percent.
+
 
 Rank 26 (`shared-types-and-ownership.md` 4.11): right of `conditions`, `attacks`,
 `hit-points-and-damage` and `initiative-and-actions` (25); left of `encounter-aggregate`
@@ -23,7 +36,7 @@ each moved id is a Withdrawn row in 4.16 naming the live id of the new owner.
 `spell-effects.md` (decisions FR-048); FR-109 and FR-034 to FR-041 are withdrawn to
 their owners.
 
-**Amendments asked of other specs (none made here).** RA-1:
+**Amendments asked of other specs (RA-1 is made).** RA-1 (the use cases are built in `magical_effects_usecase.go`; `combat-action-resolution.md` FR-168 and FR-170 now list the five, among their 29 and 30 operations):
 `combat-action-resolution.md` use cases and telemetry (FR-148, section 7). RA-4:
 `spell-effect-data.md` FR-014 wording ("unless its creator decides otherwise is the
 host's input and is not modelled") contradicts FR-016 here. RA-5:
@@ -37,8 +50,8 @@ of Effect origin rules and membership from host facts (the six shapes are
 `spell-effect-data.md`'s, FR-013, FR-014, decisions FR-059); Curses, Illusions,
 Shape-Shifting, Teleportation, Simultaneous Effects and the spells named by
 Possession. Pure domain in `combat`: state in, new state and events
-out; no use case, port or dice; use cases and telemetry are RA-1 (FR-148, section
-7) and none calls another use case (`shared-types-and-ownership.md` FR-044).
+out; no port or dice. The five use cases of RA-1 are built in
+`magical_effects_usecase.go` (FR-148, section 7) and none calls another use case (`shared-types-and-ownership.md` FR-044).
 
 **The map boundary (decision, Q-4).** The package models no map. Positions,
 distances, lines of sight and shape geometry are the host's; this spec states the
@@ -88,7 +101,7 @@ carries over). Rule files: `doc/rules/architecture.md` §2, §3, §6;
 | Possession | `PossessionPrevention`, `PossessionEnding` | Spell classification only; the state is `toolbox-curses-and-contagions.md`'s. |
 | Illusions | `IllusionTraits`, `IllusionSenseID`, `IllusionManifestation` | Truesight stays in the senses spec. `IllusionSenseID` is a local open id (host or effect description, no content kind). |
 | Shape-Shifting | `ShapeShiftState` (`TrueForm`, `ShiftedForm`), `CarryOverRule` | |
-| Teleportation | `TeleportCommand`, `TeleportResult`, `DestinationSpace`, `DestinationSight`, `TouchedCreaturePolicy` | |
+| Teleportation | `TeleportCommand`, `TeleportCombatantResult`, `DestinationSpace`, `DestinationSight`, `TouchedCreaturePolicy` | |
 | Simultaneous Effects | `PendingEffectID`, `OrderingAuthority`, `TurnHolder` | |
 
 Each operation returns a closed `<Operation>Result` with operation-prefixed
@@ -351,7 +364,7 @@ The package names who decides the order and validates the order the host brings 
 | FR-144 | One rule for host-supplied input. A list or set the host supplies, whose validity depends on the state it describes, MUST produce an operation-prefixed result and not an error or panic: an empty list of lines for an `InsideShape` location (FR-023), a shift exception naming something not held (FR-049), a revert-on-death for a creature that is not Dead (FR-055), a touched set holding the teleporter or a repeated id (FR-068), and a repeated pending id (FR-095). Each result is classified by `combat-foundations.md` FR-031, which `architecture.md` §6 does not override: malformed host input (FR-023, FR-068, FR-093, FR-095) is `invalid`; state-dependent outcomes (FR-049, FR-055 and the rest) are `refused`. A constructor error matching `srderr.ErrInvalidInput` is kept for invariants of a value (dimension minimums, duplicate ids inside `OngoingEffects`, a negative cost). | `doc/rules/architecture.md` §6; `combat-foundations.md` FR-031 | unhappy (invalid input) |
 | FR-145 | `RemoveCurse` acts on a creature's `OngoingEffects`, and Demonic Possession (`toolbox-curses-and-contagions.md` FR-026) on its `DemonicPossessionState` (a downstream type: a pointer, not an import). They are independent states and neither calls the other. When curse-removing magic is applied to a creature that has both, the host MUST call both operations; each is correct alone. This spec holds no possession state. | SRD 5.2.1, "Curses", p. 179; "Possession", p. 186; `toolbox-curses-and-contagions.md` FR-025, FR-026 | unhappy (rule interaction) |
 | FR-147 | Each event of the `MagicalEffectEvent` family MUST implement `CombatEvent` with a constant `Kind()` and a defensively copied `Combatants()` slice in the order of table 4.15a, and the `internal/archtest` scan (`combat-foundations.md` FR-016 to FR-019) MUST find every kind unique in the package. The family is a closed variant set (an interface with an unexported marker method) and each event is past tense (`shared-types-and-ownership.md` FR-019). | `combat-foundations.md` FR-015 to FR-019; `shared-types-and-ownership.md` FR-019 | unhappy (name collision) |
-| FR-148 | Telemetry is the use-case layer's, through the shared `CombatTelemetry` (`combat-foundations.md` FR-029 to FR-035). Amendment RA-1 to `combat-action-resolution.md` (not made here) adds one use case per operation family, each run in one `CombatTelemetry.Run` call with the `CombatOperation` named in section 7. Each calls the pure services of this spec and never another use case, and records only its own signals (`shared-types-and-ownership.md` FR-044). This spec adds no signal name of its own. | `combat-foundations.md` FR-029 to FR-035; `shared-types-and-ownership.md` FR-044; `doc/rules/observability.md` §2, §3 | happy |
+| FR-148 | Telemetry is the use-case layer's, through the shared `CombatTelemetry` (`combat-foundations.md` FR-029 to FR-035). The five use cases of amendment RA-1 are built in `magical_effects_usecase.go`, one per operation family, each run in one `CombatTelemetry.Run` call with the `CombatOperation` named in section 7. Each calls the pure services of this spec and never another use case, and records only its own signals (`shared-types-and-ownership.md` FR-044). They add five operations and nine `srd5e.combat.result` values, catalogued in `doc/observability/signals.md`; the pure domain adds no signal. | `combat-foundations.md` FR-029 to FR-035; `shared-types-and-ownership.md` FR-044; `doc/rules/observability.md` §2, §3 | happy |
 
 #### Table 4.15a: event kinds and combatants (FR-147)
 
@@ -477,24 +490,26 @@ reused types are named in sections 1 to 3 (`CombatantID`, `CombatEvent`,
 
 ## 6. Interface
 
-Every operation is a synchronous pure function over host-held values (no use case,
-port or `ctx`; RA-1 is section 7). Exported from package `combat`;
+Every operation is a synchronous pure function over host-held values (no port or `ctx`; the five use cases that record them are in section 7). Exported from package `combat`;
 the `internal/archtest` scan (`doc/rules/architecture.md` §9) must find no
 duplicate name: `AreaShape` and variants are not exported here, `TurnHolder` is
 this spec's while `TurnOwner` stays `spell-effect-data.md`'s, and `NotPossessed`,
 `PossessionState` and the Concentration names are not defined here. Handoff types:
-`AreaMembershipResult`, `OngoingEffects`, `TeleportResult`, `ShapeShiftState`, the
+`AreaMembershipResult`, `OngoingEffects`, `TeleportCombatantResult`, `ShapeShiftState`, the
 `MagicalEffectEvent` family. No test doubles (decisions FR-038); `toolbox` imports
 `CurseRemovalMeans`, `PossessionPrevention`, `PossessionEnding`, `OngoingEffect` and
 `EffectSource` from package `combat` (its FR-045).
 
 ## 7. Observability
 
-The domain is silent (`doc/rules/observability.md` §3). This spec owns no signal:
-telemetry is RA-1, through the shared `CombatTelemetry` (`combat-foundations.md`
-FR-029 to FR-035; `srd5e.outcome` is `success` or `failure` only, decisions
-FR-041). RA-1 adds the five `CombatOperation` names below (the CamelCase use cases
-of each, `combat-foundations.md` FR-022) and the closed `srd5e.combat.result` set to
+The domain is silent (`doc/rules/observability.md` §3). The five use cases of RA-1 in
+`magical_effects_usecase.go` record the signals, through the shared `CombatTelemetry`
+(`combat-foundations.md` FR-029 to FR-035; `srd5e.outcome` is `success` or `failure`
+only, decisions FR-041). They add the five `CombatOperation` names below (the
+CamelCase use cases of each, `combat-foundations.md` FR-022) and the closed
+`srd5e.combat.result` set, which are the `remove_combatant_curse`,
+`shift_combatant_shape`, `teleport_combatant`, `resolve_effect_order` and
+`assess_area_location` span rows and the nine result-value row of
 `doc/observability/signals.md`. Classes (`combat-foundations.md` FR-030, FR-031):
 `applied` (`success`) is a completed rule answer, including `AreaMembershipExcluded`;
 `refused` (`failure`, no error status, no log) is legal input the rules do not
@@ -514,11 +529,12 @@ no ids, distances, amounts or Hit Points. Operations: `remove_combatant_curse`
 | `shift_combatant_shape` | `ShiftShapeApplied`, `RevertToTrueFormApplied`, `RevertOnDeathApplied` | `completed` | applied |
 | | `ShiftShapeExceptionNotHeld` | `shift_exception_not_held` | refused |
 | | `RevertOnDeathNotDead` | `revert_not_dead` | refused |
+| | `RevertToTrueFormExceptionNotHeld` | `shift_exception_not_held` | refused |
 | `teleport_combatant` | `TeleportArrivedAtDestination`, `TeleportArrivedNearDestination` | `completed` | applied |
 | | `TeleportDestinationNotSeen` | `teleport_destination_not_seen` | refused |
 | | `TeleportInvalidTouchedSet` | `teleport_invalid_touched_set` | invalid |
 | `resolve_effect_order` | `OrderSimultaneousEffectsOrdered` | `completed` | applied |
-| | `OrderSimultaneousEffectsRejected` | `order_rejected` | invalid |
+| | `OrderSimultaneousEffectsRejected` | `order_rejected`, or `limit_exceeded` when its one problem is `OrderProblemLimitExceeded` (plan P10) | invalid |
 | `assess_area_location` | `AreaMembershipIncluded`, resolved `AreaOriginResolution` | `completed` | applied |
 | | `AreaMembershipExcluded` | `area_location_excluded` | applied |
 | | `AreaMembershipNoLinesConsidered` | `area_no_lines_considered` | invalid |
@@ -526,7 +542,7 @@ no ids, distances, amounts or Hit Points. Operations: `remove_combatant_curse`
 The seven questions (`doc/rules/observability.md` §2), one line each:
 
 1. **What can go wrong?** Wrong host geometry, a call in the wrong state (`refused`), malformed input (`invalid`), or an invalid dimension, duplicate id or negative cost (a constructor error matching `srderr.ErrInvalidInput`).
-2. **How would an operator know?** `srd5e.combat.operations` by operation and result, once RA-1 lands; an `invalid` result sets the span error status, a `refused` one does not; `srd5e.combat.errors` counts only port `*srderr.PortError`s (`combat-foundations.md` FR-032).
+2. **How would an operator know?** `srd5e.combat.operations` by operation and result; an `invalid` result sets the span error status, a `refused` one does not; `srd5e.combat.errors` counts only port `*srderr.PortError`s (`combat-foundations.md` FR-032).
 3. **What would someone need to diagnose it?** Results and events carry the deciding inputs: exclusion reason, `CurseRemovalMeans`, what carried over and what did not.
 4. **What should be counted or timed?** Each call by operation and result, through `CombatTelemetry`.
 5. **Is existing instrumentation still correct?** Yes: no Concentration state is defined here.
@@ -535,8 +551,7 @@ The seven questions (`doc/rules/observability.md` §2), one line each:
 
 ## 8. Test plan
 
-All unit tests in `combat/*_test.go` (no ports, no doubles, no observability
-tests: `doc/rules/observability.md` §9), except architecture tests in
+The domain tests are unit tests in `combat/*_test.go` (no ports, no doubles); the FR-148 tests are application tests of the use cases with the recording telemetry double; architecture tests are in
 `internal/archtest/`.
 
 | Id | Level | Notes |
@@ -553,14 +568,16 @@ tests: `doc/rules/observability.md` §9), except architecture tests in
 | FR-064 | architecture | Name scan: the teleportation files neither import nor name `DepartureMeans`; no unit test (an absent field cannot be asserted on in a compiled test) |
 | FR-091 to FR-096 | unit | Both turn holders; permutation, never sorted, all problems in input order, fewer than two, duplicate pending ids as a rejection, immutability |
 | FR-143 | architecture | Import-direction check for `combat` files of this spec; no `character` service import; the export scan finds no duplicate or generic variant name and none of `spell-effect-data.md`'s `TurnOwner`, `NotPossessed`, `AreaShape` |
-| FR-144 | unit | One test per rejection result of the rule, each asserting its class in the section 7 table (`invalid` for FR-023, FR-068, FR-093, FR-095; `refused` for the rest) |
+| FR-144 | unit | One test per rejection result of the rule, each asserting its class in the section 7 table (`invalid` for FR-023, FR-068, FR-093, FR-095; `refused` for the rest); the class half is asserted by the rows of `TestMagicalEffectsUseCases` through the use cases |
 | FR-145 | unit | A creature with a curse effect and a possession state: each operation alone gives its own result |
 | FR-147 | architecture, unit | Table 4.15a: each `kind` constant, unique; `combatants` order |
-| FR-148 | scenario, deferred | Needs RA-1 in `combat-action-resolution.md`; the signal checks are its tests |
+| FR-148 | application | `combat/magical_effects_usecase_test.go` (one test per row of the section 7 table: owner's result unchanged, operation, class, `srd5e.combat.result`, span status, events counted, Noop equals recording; cancelled `ctx`; invalid input; inputs unchanged), `combat/magical_effects_signals_internal_test.go` (operations and values pinned), `internal/archtest/combat_magical_effects_usecase_test.go` (no use case called, closed sets), `TestSignalCatalogueEqualsTheConstants` |
 
-No doubles or contract suites. Mutation testing (`doc/rules/testing.md` §8): all
-changed domain lines (`gomu`, threshold 80, run only inside Docker with `--cpus` and `--workers` capped at a quarter of the host processors, never on the host); boundary rows
-exist for FR-014. Not covered: FR-148 (deferred); that `initiative-and-actions.md`
+No doubles or contract suites. Mutation testing (`doc/rules/testing.md` §8) is skipped
+for the use-case file `magical_effects_usecase.go` (step 14): mutation skipped at user
+request; no mutation score. The domain files keep the scores of section 1 (`gomu`,
+threshold 80, only inside Docker with `--cpus` and `--workers` capped at a quarter of
+the host processors, never on the host); boundary rows exist for FR-014. Not covered: that `initiative-and-actions.md`
 treats a teleportation as no departure (its own decision row; only FR-064's test).
 
 ## 9. Open questions and decisions

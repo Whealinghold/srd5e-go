@@ -599,3 +599,5 @@ Under `Unreleased`:
 - **Added:** equipment rule services in `character`: `ArmorRules`, `CarryingCapacity`, `DrawnLoad`, `Barding`, `ShipRepair`, `Crafting`, `ScrollScribing`, `SpellcastingServices` and `ArmorTrainingRules` (untrained armor and the Strength and Dexterity Disadvantage as a `RollCircumstance` for the consumer), plus the Stealth-column Disadvantage as a `RollCircumstance` (`ArmorRules.StealthCircumstances`).
 - **Documentation (with acceptance):** the `character` purpose row in architecture.md section 2 and the `character/` line of "Current contexts" in AGENTS.md say it also hosts the equipment rule maths (Q3).
 - **Changed:** these rules leave the planned `content` API (content-equipment.md), which keeps entry types and data; nothing is released, so not **BREAKING**.
+
+Amendment requested by `movement-lifting-and-flight.md` Q15 (spec-only, not yet applied): item weights that are `Varies` or `NoWeight` are totalled here or in `character`, never in `combat`; the Speed limit of a load takes the `LoadSpeedLimited` assessment of the total.

@@ -63,10 +63,12 @@ logic, no aliases).
 | `content/contenttest` | Test doubles for the content ports (`FakeSource`, `FakeDecoder`) and their contract suite | test support |
 | `d20` | First bounded context: domain and use case in one package, unexported helpers, one file per concept | context |
 | `character` | Character context: abilities, Proficiency Bonus, level, derived stats, spellcasting, equipment rule maths (grows per Phase 3 step) | context |
+| `combat` | Combat context: combatant identity, hit points and damage, conditions, attacks, initiative and turns, movement, spell effects on combatants, the encounter aggregate (grows per Phase 4 step) | context |
+| `combat/combattest` | Event-family checks for the combat context (`combat` events) | test support |
 | `internal/archtest` | Architecture tests (§9) | tooling |
 | `scenarios` | Cross-package tests through the public API only (`package scenarios_test`) | tests |
 
-Future contexts (`combat`, `toolbox`) each become one
+Future contexts (`toolbox`) each become one
 top-level package and are not created before their specs are implemented.
 Bundled content data lives in `content/data/` as JSON files embedded directly
 with `go:embed` (no generator step).
@@ -104,6 +106,8 @@ imports something not listed.
 | `content/contenttest` | `content`, `srderr` | other contexts, other `*test` packages, kernel packages other than `srderr` |
 | `d20` | `dice`, `ability`, `modifier`, `srderr`, `telemetry` | `*test` packages (production files), `internal/` |
 | `character` | `content`, `d20`, `dice`, `ability`, `modifier`, `srderr`, `telemetry` | `combat`, `toolbox`, `*test` packages (production files), `internal/` |
+| `combat` | `character`, `d20`, `content`, `dice`, `ability`, `modifier`, `srderr`, `telemetry` | `toolbox`, `*test` packages (production files), `internal/` |
+| `combat/combattest` | `combat`, `srderr` | other contexts, other `*test` packages, kernel packages other than `srderr` |
 | `scenarios` (tests only) | every public package, including `*test` | `internal/` |
 | `internal/archtest` | nothing in the module | everything (it scans files, it does not import them) |
 
@@ -527,6 +531,8 @@ fixture module, so the checker itself is tested.
 
 Implemented: A1 to A13, plus the package-var tightening of A4 (an `Err`-prefixed var typed `error` or untyped, with no literal value) and a documentation-only check for the module root and the tests-only `scenarios` directory (no declarations in non-test files). The scan of A10 covers `.github/`. Not mechanised, and left to review: the rule that only `*test` packages and `scenarios` import more than one parent package, that the §1 and §2 tables equal `DefaultPolicy` and `AGENTS.md` (`DefaultPolicy` is the encoding; change both in one change), that a new port is in the errors-and-results table, and the `math/rand` call ban. `internal/archtest` tests its rules in memory (`testing/fstest`) rather than from `testdata/` files: each rule has a violating overlay on a clean fixture module.
 
+Also implemented, as part of `Check` and outside the A1 to A13 numbering: the combat scans (`internal/archtest/combat_scans.go`, `combat-foundations.md` FR-022, FR-023, FR-026, FR-038). Rule `combat-naming`: no generic variant name in `combat`; every use case with an exported `Run(ctx, cmd)` takes `<UseCase>Command` and returns a closed `<UseCase>Result`; a variant of a use case result belongs to one result; a `*Rejected` variant holds a `*Rejection` or `*Problem`, an `*Invalid` variant holds one or the `error` that joins them (or nothing), a `*NotPossible` variant holds a `*Reason`. Rule `combat-envelope`: the types implementing `transportEnvelope` equal the four envelopes `encounter-aggregate.md` names, delegate `Kind` and `Combatants`, and every `...Occurred` type is marked. Rule `combat-import-rank`: a `combat` file names no use case of `character` or `content`, and a `d20` service only in a use-case file (`toolbox` and `internal/` are A1 and A2). Rule `combat-spec-rank`: the `Depends on` row of every combat spec (ranks 20 to 39 of `shared-types-and-ownership.md` 4.11) lists only strictly lower ranks. A Go import cannot be mapped to a spec, so the rank is read from the spec headers. Rule `combat-hit-kind` (`internal/archtest/combat_foundations_scans.go`, `hit-points-and-damage.md` FR-111): `HitKind` has exactly two members, declared in `combat/hit_point_inputs.go` only, and no call of a name containing `ApplyDamage` or `DealDamage` takes an `IsCriticalHit` selector in its arguments. Rule `combat-event-files` (`combat-foundations.md` FR-016, FR-017): an event file (a name ending `_event.go`, or a file declaring `Kind`) imports no `reflect` and holds no `%T` verb. Rule `combat-result-class` (`combat-foundations.md` FR-031): a `valueResult...` constant of `signals.go` named by two `description` literals with different classes, or by no file outside `signals.go`, fails. Rule `combat-examples` (`combat-action-resolution.md` FR-152 to FR-155): an Example function of `combat` has an Output comment, no `default` arm, no `print` or `println` and no clock, randomness, environment, network or file system. Rule `combat-operation-pairing` (`internal/archtest/combat_operation_pairing.go`): every `combatOperation{valueOperationX, spanX}` literal pairs constants with the same suffix X, and when `combat/signals.go` is present declares both. Rules `combat-attr-key`, `combat-attr-value`, `combat-span-calls`, `combat-kind-identity` and `combat-reference-imports` (`combat_foundations_scans.go`; `combat-foundations.md` FR-041, FR-033, FR-032 and FR-035, FR-012, FR-014): every attribute key built in `combat` is an `attr...` constant of `signals.go` or a `d20` or `telemetry` `Attr...` key; no attribute value names an id, Amount, Message, Text or an Error call; only `instrumenter.go` calls RecordError, SetStatus, Tracer.Start and StartTimer; a `CombatantKind` variant has the exported field ID only and no exported method; the combatant reference files import the standard library, `character`, `content` and `srderr` only.
+
 Checks A1 to A13 are lexical or AST-level, not type-checked, so each documents its
 known blind spots (for example A4 cannot see a `time.Now` assigned to a variable
 first) and relies on review for those.
@@ -595,7 +601,7 @@ contract suite. After that these rules apply in full.
 
 ## Read receipt
 
-RULE-TAG: `architecture-c5791ae74e42`
+RULE-TAG: `architecture-a90cc5e4a48c`
 
 This tag proves you read this document in this session. Quote it verbatim as
 required by `AGENTS.md`. Do not copy it anywhere else. Whoever edits this

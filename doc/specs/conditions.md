@@ -2,10 +2,25 @@
 
 | | |
 |---|---|
-| Status | draft |
+| Status | implemented |
 | Context | `combat` |
 | Roadmap phase | 4 |
 | Depends on | `combat-foundations.md`, `ability-scores.md`, `modifiers-and-advantage.md`, `errors-and-results.md`, `observability-ports.md`, `content-schema-and-decoder.md` |
+
+**Implementation status.** Implemented in package `combat` (one file per concept, tests named after the source files): every live requirement id of section 4 (131 ids; the 11 withdrawn ids have new owners) is T and has a test; none needs Phase 5 data or an unmerged class (no D ids). Files: `condition.go`, `exhaustion_level.go`, `condition_definition.go`, `condition_states.go`, `condition_set.go`, `condition_set_operations.go`, `condition_result.go`, `condition_event.go`, `roll_contributions.go`, `condition_effects.go`, and the use cases `apply_condition_to_set.go`, `remove_condition_from_set.go`, `reduce_exhaustion_on_set.go` over `condition_usecase.go`. `internal/archtest/combat_conditions_test.go` enforces FR-131 (imports), FR-140 (result file, no use-case name in domain files), FR-139/FR-129 (three event members), FR-122 (signal names) and the export list. Spec corrections made while implementing, all decided in the code:
+
+- **`Exhaustion` is `ExhaustionCondition`.** `combat.Exhaustion` is already the `DeathCause` constant of `hit-points-and-damage.md`, so the condition variant is `ExhaustionCondition{Level}`; every other variant keeps the name of its kind.
+- **Sources are exported fields.** `combat-foundations.md` FR-009 forbids any function returning a `CombatantID`, and FR-142 wants callers to read the grappler, so `Frightened{Source}`, `Grappled{Grappler}`, `CharmedByCombatant{ID}`, `ExhaustionCondition{Level}` and `Charmed{Charmer}` are keyed-literal structs; a zero source or level is invalid and `NewConditionSet`, the commands and the event constructors reject it. The effect variants (`AttackRollsAgainst` and the rest) are keyed-literal structs too; `SavingThrowsAutoFail` holds a slice and so is not comparable.
+- **`ConditionSet` is comparable.** It stores one `Condition` per kind in a fixed array and the immunities as a bit set, so `==` equals `Equal` and the copies are free; the accessors build fresh slices.
+- **Use cases** are types with a `Run` method (`NewApplyConditionToSet(opts...).Run(ctx, cmd)`), as in `hit-points-and-damage.md`, not functions. Commands are built with `NewApplyConditionToSetCommand`, `NewRemoveConditionFromSetCommand` and `NewReduceExhaustionOnSetCommand` (which does not check `levels`, FR-045). A result interface carries `Set()`; the change variants carry `Events()`.
+- **Domain operations that cannot return an error** (`Apply`, `Remove`) treat a zero target or an invalid condition or kind as a no-op (`ConditionAlreadyHeld`, `ConditionRemovalNotPresent`); the command constructors reject them first. `ReduceExhaustion` returns the error for `levels` below 1 first, then for a zero target.
+- **Facts that are not validated.** In `ConditionAttackFacts` and the query arguments only `SightRelationCanSee` and `LineOfSightClear` count as seeing and as in line of sight; the zero value counts as not.
+- **`IsDeadFromExhaustion` and the Exhaustion penalties read the effective condition**, so a creature immune to Exhaustion does not die of a stored level 6 (the level stays stored and `ReduceExhaustion` still lowers it, FR-125).
+- **`Kind()`** of a `Condition` returns a `content.ConditionKind`; the event architecture test (`TestCombatEventDeclarations`) now looks only at `Kind() string` methods.
+- **Events** embed an unexported `conditionEventBase`; there is no target accessor (the target is `Combatants()[0]`). `ConditionRemoved` reports its kind with `ConditionKind()`.
+- Shared result names reuse `valueResultEnded` and `valueResultReduced` (same wire values `ended` and `reduced`).
+
+Not yet implemented: none. The conditions-per-creature bound of plan P10 needs no rejection or cap test: a set stores one condition per kind in a fixed array (at most 15 explicit conditions and 6 Exhaustion levels), so no collection is built that could exceed a cap; the fully loaded set is tested (see Limits in section 1). Mutation testing: mutation skipped at user request; no mutation score.
 
 Dependency notes (prose, not dependencies): `combat-foundations.md` supplies `CombatantID`, `Event`, `Operation`, `ResultClass`, `Telemetry` and `Signals` (shared-types-and-ownership.md FR-012, FR-015). `modifiers-and-advantage.md` supplies `RollCircumstance` and `RollMode`; `Modifier` is not used, because `D20TestReduction` returns an `int`. `content-schema-and-decoder.md` FR-110 owns `ConditionKind` (shared-types-and-ownership.md FR-005, FR-046). `grappling.md` depends on this spec and is referenced, not depended on (shared-types-and-ownership.md FR-029, FR-048). Nothing here depends on a later `combat` spec or a downstream context (shared-types-and-ownership.md FR-013, FR-015).
 
@@ -28,6 +43,7 @@ Effects are pure queries over a `ConditionSet`. `ConditionEffects` is the publis
 - **Innate immunities** (monster immunities): they come from content and enter as an input set.
 - **Conditions not in the Glossary list** (Burning, Bloodied, Dead, Stable, Surprised, Concentrating, Cursed, Possessed, Hiding): hazards, states or other rules (p. 179).
 - **Anything outside SRD 5.2.1.**
+- **Limits (plan P10):** no cap is built and none is needed. The condition set is bounded by the closed `ConditionKind` list and by Exhaustion levels 1 to 6 (SRD 5.2.1, not a P10 cap), so no collection here can exceed one, and a condition call emits at most one event, so the events cap of 4,096 per call is unreachable and has no rejection or test. `TestFullyLoadedConditionSetRefusesEveryKind` (`condition_limit_test.go`) pins the bound: a set holding all fifteen kinds with Exhaustion level 6 is accepted and `Apply` refuses every kind (Exhaustion at its maximum, the others held or immune) and leaves the set unchanged.
 
 ## 2. Source
 
@@ -561,7 +577,7 @@ Levels: unit (`conditions_test.go` and siblings, `package combat_test`), use cas
 | (architecture) | architecture | Existing tests cover the new files: no domain-file imports of use-case code or ports, no clock or `math/rand`, no `telemetry` calls in domain files, signal constants match `doc/observability/signals.md` |
 
 - **Doubles:** no new port. Uses the recording doubles from `telemetry/telemetrytest` (shared-types-and-ownership.md FR-038) and the zero-value `telemetry.Noop` (FR-036). Domain tests need no double.
-- **Mutation testing:** the condition files of package `combat` MUST be mutation tested with `gomu` (`doc/rules/testing.md` §8; Docker only, `--cpus` and `--workers` capped at a quarter of the host's processors), score at least 80; likely survivors: the 5 versus 6 foot distance boundary, the Exhaustion level 5 versus 6 boundary, the Exhaustion arithmetic, implication and precedence. The use cases SHOULD be.
+- **Mutation testing:** `combat/condition_set.go`, gomu v0.2.1 in Docker at a quarter of the CPUs (`MUTATE_OUTPUT=json MUTATE_TIMEOUT=120 just mutate ./combat/condition_set.go`, 2026-11-21): 72 mutants, 7 not viable, 56 killed, 1 timed out, 8 survived: 56 of 65 viable, 86%. Survivors: line 45 `s.immune |= bit(k)` to `^=` was a real gap (a stored immunity listed twice toggled off); it is closed by `TestConditionSetRepeatedImmunityStaysImmune`, which fails against that mutant. Line 54 (`if err != nil` to `true` in `MustConditionSet`) is killed: the test binary panics, which gomu v0.2.1 reports as a survivor. The rest are equivalent: line 64 (`!= 0` to `> 0` on an unsigned mask), line 76 (`|=` to `^=` over distinct kinds starting from 0), line 108 (`|` to `^` of the stored and derived immunities: they overlap only for Poisoned on a Petrified creature, and nothing implies Poisoned, so the overlap never reaches the mask), line 157 (`== 0` to `<= 0` on an unsigned mask), and lines 151 and 158 (`return 0` replaced by an identical `return 0`). **Not covered:** none
 - **Not covered:** none; withdrawn ids are covered by their new owners. "Does not apply" effects are covered by the boundary rows (FR-049, FR-053, FR-056, FR-062, FR-075, FR-083, FR-095, FR-098).
 
 ## 9. Open questions and decisions

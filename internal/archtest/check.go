@@ -89,6 +89,7 @@ func Check(m Module, p Policy) []Violation {
 	vs = append(vs, checkEmbedded(m)...)
 	vs = append(vs, checkVocabulary(m)...)
 	vs = append(vs, checkThirtyTwoBit(m)...)
+	vs = append(vs, checkCombat(m, p)...)
 	vs = append(vs, checkRuleTags(m)...)
 	sort.SliceStable(vs, func(i, j int) bool {
 		a, b := vs[i], vs[j]

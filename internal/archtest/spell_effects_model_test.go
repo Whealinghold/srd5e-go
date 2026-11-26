@@ -183,6 +183,7 @@ func TestSpellEffectModelFilesOfTheModule(t *testing.T) {
 	}
 	var files []archtest.File
 	declared := map[string]int{}
+	aliasesTurnOwner := false
 	var mine []string
 	for _, pkg := range m.Packages {
 		for _, f := range pkg.Production() {
@@ -195,6 +196,9 @@ func TestSpellEffectModelFilesOfTheModule(t *testing.T) {
 					for _, s := range g.Specs {
 						if ts, ok := s.(*ast.TypeSpec); ok && ts.Name.IsExported() {
 							declared[ts.Name.Name]++
+							if id, isID := ts.Type.(*ast.Ident); ts.Name.Name == "TurnHolder" && isID && id.Name == "TurnOwner" {
+								aliasesTurnOwner = true
+							}
 							if isModel {
 								mine = append(mine, ts.Name.Name)
 							}
@@ -221,7 +225,7 @@ func TestSpellEffectModelFilesOfTheModule(t *testing.T) {
 			t.Errorf("%s is declared %d times in the module, want exactly once", want, declared[want])
 		}
 	}
-	if declared["TurnHolder"] != 0 {
-		t.Error("a TurnHolder type shares the module with TurnOwner")
+	if declared["TurnHolder"] > 1 || aliasesTurnOwner {
+		t.Error("TurnHolder (magical-effects.md FR-091) is declared once at most and is never a second name for TurnOwner")
 	}
 }

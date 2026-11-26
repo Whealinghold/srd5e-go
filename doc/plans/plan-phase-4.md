@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | Proposed. Nothing is built. |
+| Status | Partially closed. Steps 0 to 14 are done (see the Phase 4 entry of [../roadmap.md](../roadmap.md)) and the closing audit (step 13) was run again after the fix passes, reading the `Status` and `Not yet implemented` line of every spec: of the 36 specs, 25 are `implemented` and 11 `partially implemented`. The P10 caps are decided and built in every spec that holds a collection, each tested at the cap and cap plus one, with two exceptions that no input can change: the cascade step budget of 1000 is tested on the call accumulator only, because no call can take that many steps, and the events cap of 4096 is tested through five of the nine resolution use cases, because the other four cannot reach it (their events are bounded by their per-call lists, so they hold no check). `combat-action-resolution` and `combat-foundations` are `implemented`; the variant-prefix half of `combat-foundations` FR-022 is a decided waiver (no rule can read the operation noun from a use case name). Still open, and the reason the phase is not recorded as closed: (1) D ids that wait for Phase 5 data (bundled monsters, equipment, spells and species), named in each spec's `Not yet implemented` line: `deployed-and-restraining-gear` D-1 and D-2, `item-use-effects` D-1, `monster-limited-use` D-1, `monster-combatant-setup` D-1, `monster-stat-block-actions` D-1, `monster-traits` FR-094, `monster-spellcasting` (the contract test over the stat blocks), `spell-effects` D-1, `shape-changing-spells` D-1, `spell-outcome-tables` FR-054 (five of the nine Reincarnate species are not bundled) and `summoned-and-companion-creatures` FR-037; (2) the spec-only amendments that `spell-outcome-tables` section 9 asks of seven other specs, which are not made and change no code. Nothing else is open. No D id needs a `character` amendment: the class-dependent ones were re-checked against the merged classes, and the `monster-spellcasting` amendment A1 is built. P1, P10 and P14 are decided by delegation (section 4). `GOARCH=386 go test -count=1 ./content/... ./combat/...` is green, and `just test-386` and the CI job run both packages. Mutation testing is skipped for this phase by user decision, so no step has a mutation score recorded and none is blocked by it; spec Testing entries record: mutation skipped at user request; no mutation score. |
 | Roadmap phase | 4 ([../roadmap.md](../roadmap.md)) |
 | Specs sequenced | `combat` (rank 20 to 31, 36 specs): [combat-foundations](../specs/combat-foundations.md), [hit-points-and-damage](../specs/hit-points-and-damage.md), [conditions](../specs/conditions.md), [grappling](../specs/grappling.md), [hiding-searching-and-senses](../specs/hiding-searching-and-senses.md), [environment-hazards-and-objects](../specs/environment-hazards-and-objects.md), [telepathy](../specs/telepathy.md), [attacks](../specs/attacks.md), [attack-and-help-actions](../specs/attack-and-help-actions.md), [mounted-and-underwater-combat](../specs/mounted-and-underwater-combat.md), [deployed-and-restraining-gear](../specs/deployed-and-restraining-gear.md), [monster-engulf-and-swallow](../specs/monster-engulf-and-swallow.md), [initiative-and-actions](../specs/initiative-and-actions.md), [item-use-effects](../specs/item-use-effects.md), [monster-limited-use](../specs/monster-limited-use.md), [magical-effects](../specs/magical-effects.md), [movement-lifting-and-flight](../specs/movement-lifting-and-flight.md), [grid-positions-and-movement](../specs/grid-positions-and-movement.md), [readying-a-spell](../specs/readying-a-spell.md), [monster-combatant-setup](../specs/monster-combatant-setup.md), [spell-effects](../specs/spell-effects.md), [returning-to-life](../specs/returning-to-life.md), [monster-stat-block-actions](../specs/monster-stat-block-actions.md), [monster-traits](../specs/monster-traits.md), [monster-spellcasting](../specs/monster-spellcasting.md), [encounter-aggregate](../specs/encounter-aggregate.md), [active-effects](../specs/active-effects.md), [spell-granted-modifiers](../specs/spell-granted-modifiers.md), [persistent-spell-zones](../specs/persistent-spell-zones.md), [dispel-and-counterspell](../specs/dispel-and-counterspell.md), [shape-changing-spells](../specs/shape-changing-spells.md), [revival-and-restoration-spells](../specs/revival-and-restoration-spells.md), [spell-outcome-tables](../specs/spell-outcome-tables.md), [combat-action-resolution](../specs/combat-action-resolution.md), [combatant-roster-changes](../specs/combatant-roster-changes.md), [summoned-and-companion-creatures](../specs/summoned-and-companion-creatures.md). Rank table: `shared-types-and-ownership.md` §4.11. |
 | Depends on | Phases 0 to 2, and Phase 3 steps 0 to 7c (see P1); step 12 also needs Phase 3 steps 11b (Druid), 11e (Warlock) and the step 10 spells (P1) |
@@ -31,7 +31,7 @@ its section 9, so the gaps below are the plan's own findings.
 
 | Asset | Where | Used for |
 |---|---|---|
-| `d20.ResolveCheck`, `ResolveAttack`, `Roll`, reroll operations, `RollModifiers`, `DifficultyClass`, `Resolver` and its `WithTelemetry` / `WithClock` options | `d20/` | every save, check, attack and Death Saving Throw (hit-points-and-damage Q-4: a Death Saving Throw is a D20 Test); the constructor and option shape for each `combat` use case |
+| `d20.ResolveCheck`, `ResolveAttack`, `Roll`, reroll operations, `RollModifiers`, `DifficultyClass`, `Resolver` and its `WithTelemetry` / `WithClock` options | `d20/` | every save, check and attack; the Death Saving Throw is a D20 Test (hit-points-and-damage Q-4) that does not go through `d20.ResolveCheck` (FR-061); the constructor and option shape for each `combat` use case |
 | The `character` published language (verified present): `Identifier` (the character id, `character/identifier.go`), `Character`, `HitPointMaximum`, `IsBloodied(currentHitPoints, maximum)` (`character/bloodied.go`), `ProficiencyBonus.Value()` (`character/proficiency_bonus.go:22`), `ModifierBreakdown.ToRollModifiers`, `RestApplied`, weapon-property attack plans, the function `ExtraAttackCombination(counts []int) (int, error)` (`character/extra_attack_combination.go`), Concentration state shape, spell slots and save DC. `character.Event` is only the character-side event family: `combat` declares its own sealed `Event` (combat-foundations FR-025 reserves the name) and does not reuse it | `character/` (Phase 3 steps 2 to 7) | combatant state is built from these by id and value, never by reaching into the aggregate (`architecture.md` §2); the plan types of step 4c are what `attacks` maps |
 | `modifier.RollCircumstance`, `modifier.RollMode` | `modifier/` | the condition effects of step 3 feed `d20.RollModifiers` through these |
 | Carrying and speed helpers: `NewCarryingCapacity`, `CarryHalfPounds`, `DragLiftPushPounds`, `Assess`, `CanCarry` (`character/equipment_carrying.go`), `ArmorRules.SpeedPenaltyFeet` (`character/equipment_armor_rules.go`), `Barding`, `DrawnLoad` | `character/` | steps 5c (mounted) and 7c (lifting, flight) call these instead of re-deriving weights and speed penalties |
@@ -77,7 +77,7 @@ code that hits it. **OPEN**: needs the user before the named step.
 
 | # | Item | Class | Handling |
 |---|---|---|---|
-| P1 | Which Phase 3 work must be merged before Phase 4 starts. Checked for all 36 specs' "Depends on" lines: only `summoned-and-companion-creatures` lists class specs (`class-warlock.md`, `class-druid.md`); every other `combat` spec cites class and species specs in prose only (`attack-and-help-actions` for Extra Attack counts, `shape-changing-spells`) | assumption | Steps 0 to 11 may start once Phase 3 steps 0 to 7c are merged (ranks up to 15: `initiative-and-actions` needs `feats-behaviour` (7a), `spell-effects` needs `spellcasting` (5a), `combat-action-resolution`, `monster-spellcasting` and `active-effects` need `casting-and-concentration` (6b), `item-use-effects` needs `magic-item-effects` (6c), `monster-limited-use` needs `rests-and-hit-dice` (4a), `movement-lifting-and-flight` needs `equipment-rules` (1)). **Step 12 is also gated on Phase 3 steps 11b (Druid) and 11e (Warlock), and therefore on the step 10 spell closure**, because FR-056 makes a listed spec a hard dependency. Prose-only class references in other specs stay D and are re-run in step 13. Phase 4 does not close "implemented" while step 12 or any D id of this kind is open. Override: wait for all of Phase 3 steps 9 to 11 before starting Phase 4 |
+| P1 | Which Phase 3 work must be merged before Phase 4 starts. Checked for all 36 specs' "Depends on" lines: only `summoned-and-companion-creatures` lists class specs (`class-warlock.md`, `class-druid.md`); every other `combat` spec cites class and species specs in prose only (`attack-and-help-actions` for Extra Attack counts, `shape-changing-spells`) | decided (approved by delegation; the rule of the next sentence) | Steps 0 to 11 may start once Phase 3 steps 0 to 7c are merged (ranks up to 15: `initiative-and-actions` needs `feats-behaviour` (7a), `spell-effects` needs `spellcasting` (5a), `combat-action-resolution`, `monster-spellcasting` and `active-effects` need `casting-and-concentration` (6b), `item-use-effects` needs `magic-item-effects` (6c), `monster-limited-use` needs `rests-and-hit-dice` (4a), `movement-lifting-and-flight` needs `equipment-rules` (1)). **Step 12 is also gated on Phase 3 steps 11b (Druid) and 11e (Warlock), and therefore on the step 10 spell closure**, because FR-056 makes a listed spec a hard dependency. Prose-only class references in other specs stay D and are re-run in step 13. Phase 4 does not close "implemented" while step 12 or any D id of this kind is open. **Decided (the rule of the process contract):** a class spec is needed only for the riders it names. `combat` uses what `character/` already implements. Any id that needs class code not yet built is **D** and is named in the spec's "Not yet implemented" line. Phase 4 may start once Phase 3 steps 0 to 7c are merged, as above (met: step 12 is built; see section 9) |
 | P2 | The scope is the 36 specs of ranks 20 to 31 (P2 is the roadmap Phase 4 bullet list, which names only monster-limited-use and monster-spellcasting explicitly) | decided (roadmap, `shared-types-and-ownership.md` §4.11 and FR-014) | section 3 |
 | P3 | Some requirements cannot be satisfied with the Phase 2 bundle (full monster set, all spells) | assumption: classify each requirement T (types and rules, testable with synthetic fixtures or the 17-entry slice) or D (needs Phase 5 data) per step, as Phases 2 and 3 did | the implementer re-checks every id; D ids are named in the PR `Testing` entry and the spec's "Not yet implemented" line. Fixtures are synthetic or the bundled slice, never SRD text outside `testdata/srd/` |
 | P4 | `combat/combattest` (event-family checks, combat-foundations FR-018 to FR-021) is a new package with no row in `architecture.md` §1 or `DefaultPolicy` | spec defect | step 0 adds the §1 row, the dependency row (imports `combat`, `srderr`; no other `*test` package) and the policy row, with archtest cases |
@@ -87,14 +87,13 @@ code that hits it. **OPEN**: needs the user before the named step.
 | P8 | Order inside a rank is not fixed by the specs | assumption | the order in section 5 is a suggestion; merge any order that respects "Depends on" (FR-056) |
 | P9 | Result classification: a refusal (`...NotPossible`, `Rejected`) is not an error status (combat-foundations D-4, FR-031). It is counted by `srd5e.outcome` plus the attribute `srd5e.combat.result_class` (`applied`, `refused`, `invalid`); `srd5e.combat.result` is the finer per-use-case value (FR-030). `outcome=failure` therefore also covers every refusal and is not by itself an alarm | decided (combat-foundations) | every use case routes through `Instrumenter` (FR-035); no use case records telemetry by hand |
 
-| P10 | **Library-level limits.** The specs set no cap on roster size, active effects, summons per summoner, readied actions, events per call, dice per expression, or the depth of a reaction, counterspell, containment, mount or summon chain (checked: encounter-aggregate, active-effects, combatant-roster-changes, summoned-and-companion-creatures, combat-action-resolution, initiative-and-actions, conditions, persistent-spell-zones). Limits that do exist: SRD-derived ones, and `grid-positions-and-movement` D-8 (coordinates within +/-1,000,000, footprints 1,000 per side). Hostile or corrupt saved state could otherwise reach an O(n squared) path | **OPEN** (needs the user) | The plan does not decide. **Proposed defaults, for the user to approve or change** (each is a design number, not an SRD rule): combatants per encounter 256; active effects per creature 64; summons per summoner 32; readied actions per creature 1 (derived from the SRD\x27s one reaction); events per call 4,096 (this cap governs events; the cascade budget governs steps, and one step may emit several events); cascade step budget 1,000 per call; dice per expression 1,000; link cycles rejected at link creation (a proposal); grid per D-8, plus an arithmetic (not enumerating) overlap test. Each cap is written into the spec of the step that builds the collection, by an amendment in that PR. **Which steps are affected:** every step that builds a collection, cascade or link graph, which in practice is every step from 3 onward (for example 3 conditions per creature; 4a grapples; 4b scenes and sightings; 4c hazards and objects; 5c the mount chain; 5d gear sets; 5e containment; 6a and 6b turn resources and ready chains; 7a to 7f limited-use ledgers, effects, boards, paths, readied spells and monster numbers (P13); 8a to 8e; 9a to 9h; 10; 11; 12). Each affected step lists in its `Testing` entry which cap and budget tests it holds back. The gate is **per test, not per step**: an affected step ships without its cap and budget tests, says so in its `Testing` entry, and they land when the numbers are set. Validation runs once at entry and once at exit of a call, never inside the cascade loop, so the cost is roster plus effects, not that product times the budget (a proposal, tested by operation count with a roster, effects and cascade all at their caps). Waiving the gate (no library caps; document the risk) is the user's call |
+| P10 | **Library-level limits.** The specs set no cap on roster size, active effects, summons per summoner, readied actions, events per call, dice per expression, or the depth of a reaction, counterspell, containment, mount or summon chain (checked: encounter-aggregate, active-effects, combatant-roster-changes, summoned-and-companion-creatures, combat-action-resolution, initiative-and-actions, conditions, persistent-spell-zones). Limits that do exist: SRD-derived ones, and `grid-positions-and-movement` D-8 (coordinates within +/-1,000,000, footprints 1,000 per side). Hostile or corrupt saved state could otherwise reach an O(n squared) path | decided (approved by delegation: the user asked the agent to approve the open decisions) | **Decided.** These caps are approved by delegation. Each is a design number, not an SRD rule: combatants per encounter 256; active effects per creature 64; summons per summoner 32; readied actions per creature 1 (derived from the SRD's one reaction); events per call 4,096 (this cap governs events; the cascade budget governs steps, and one step may emit several events); cascade step budget 1,000 per call; dice per expression 1,000; link cycles rejected at link creation; grid per D-8, plus an arithmetic (not enumerating) overlap test. Each cap is written into the spec of the step that builds the collection, by an amendment in that PR. **Which steps are affected:** every step that builds a collection, cascade or link graph, which in practice is every step from 3 onward (for example 3 conditions per creature; 4a grapples; 4b scenes and sightings; 4c hazards and objects; 5c the mount chain; 5d gear sets; 5e containment; 6a and 6b turn resources and ready chains; 7a to 7f limited-use ledgers, effects, boards, paths, readied spells and monster numbers (P13); 8a to 8e; 9a to 9h; 10; 11; 12). Each affected step lists in its `Testing` entry which cap and budget tests it holds back. **Built:** every cap above is in the code and in the spec of its step, with a test at the cap and at cap plus one; the gate was per test, and no test is held back. Two limits no input can reach are recorded in `combat-action-resolution.md` (Limits) instead of tested through a use case: the cascade step budget of 1000, which no call can reach (tested on the accumulator at 1000 and 1001), and the events cap of 4096 in `AdvanceCombatTurn`, `TakeCombatantAction`, `MoveCombatant` and `AttemptToStabilizeCombatant`, whose events are bounded by their per-call lists (those four hold no check; the other five use cases are tested at 4096 and 4097). Validation runs once at entry and once at exit of a call, never inside the cascade loop, so the cost is roster plus effects, not that product times the budget (built, tested by operation count with a roster, effects and cascade all at their caps). **Added design numbers (approved by delegation; design numbers, not SRD rules):** per-call input lists (cover sources, nearby enemies, circumstances, help benefits, allied helpers, proficiencies, attack-action history entries, observations, carried lists, standings, profiles, speed updates, shared-space occupants, move segments, touched ids, pending ids, chosen ids) 256 each; damage components of one `DamageSpec`, damage instances plus unpreventable plus adjustments of one `ApplyDamage`, and damage instances and adjustments of one object damage 64 each; `Grapples` set 256; composite-object sections 256; `Containments` records per set 256, occupants per container 256, `OccupantConditions` and `Survivors` 256; `DeployedGears` and `GearHolds` 256; `EntryLedger` 1024 entries, dropping the oldest when the host does not prune (documented); `SpellModifierSource` list per target 64; `GridBoard` creatures 256, terrain squares 65536, path directions 4096; `HideScene` enemies 256 and cover 4; zone ledger creatures 256. **Further design numbers (approved by delegation, group 2):** tie-breaks and roll-initiative participants 256 each (the per-call lists of `initiative-and-actions.md`); events per call 4,096 (the existing events cap, also for a zone call); ready-chain step budget 1,000 (the cascade budget; no ready chain can reach it inside one call, see `initiative-and-actions.md`); `magical-effects.md` touched set, effects list, pending ids, chosen ids and `AreaMembership` lines 256 (a creature's `OngoingEffects` list is the creature's effects, so it takes the cap of 64); `HelpBenefits` additions by `GiveAbilityCheckHelp` and `GiveAttackRollHelp` 256. **Monster and spell-effects design numbers (approved by delegation, group 3; design numbers, not SRD rules):** parts per monster 64 (all sections together), spells per monster 64 (over all the groups of the first Spellcasting), spell groups per trait 64, Multiattack variants, attack groups and replacement rules per stat block 64 each (totals), recharge-roll map entries 64, steps and replacements per `MultiattackProgress` 64 (the replacement search `assign` also tries at most 16,384 picks and answers "not allowed" past that), targets of a cast and of a stat-block save 256, damage instances of `RollStatBlockDamage` 64, allies in `PackTacticsCircumstances` 256, damages in `ApplySiegeMonster` 64, events in `TriggerDeathBurst` 256, trait text length for `RecogniseTraits` 1,024 bytes, groups and entries of a monster Spellcasting trait 64, and for one `ResolveSpellEffects` command targets 256, assignments 256, `PartIndexes` 64 and `InstanceCount` 100 (a host-supplied `InstanceCount` over the cap is rejected with `ErrInvalidSpellEffectsCommand`, never a panic: spell-effects FR-062). Over any cap the constructor or use case returns the typed invalid rejection that carries the shared `limit_exceeded` result value (an error-returning constructor matches `srderr.ErrInvalidInput`); each cap has a test at the cap and at cap plus one |
 | P11 | Superseded signal names. combat-foundations section 5 and FR-028 list the signal names of earlier combat specs that are superseded and must not be in the catalogue (for example `srd5e.combat.use_case`, `srd5e.operation`); that list is authoritative and this plan does not restate it. Some names of those specs survive (the `conditions` histogram `srd5e.combat.condition.active` with `srd5e.combat.condition.kind`, hit-points' own counters, initiative's `initiative_ties` and `turn_movement_spent`) | spec defect | step 1 adds the catalogue check of combat-foundations FR-028's test row, reading its list; each later step removes or migrates the superseded names its spec still carries in the PR that implements it; step 13 audits `signals.md` |
 | P12 | `d20` inside `combat`. combat-foundations FR-027 says `combat` reads `d20`'s exported signal constants for attribute keys it needs. `resolve-d20-test-use-case` FR-057 forbids a use case calling `Resolver`, and attacks FR-109, FR-110 and FR-127 compose `d20` domain functions as pure services | decided (the specs) | a `combat` call composes `d20.ResolveCheck`, `ResolveAttack` and the reroll operations; no `srd5e.d20_test.*` signal fires inside a `combat` call, and the `d20` extras are omitted when no d20 was rolled (attacks FR-118). Step 2 pins this with a recording test. Spec defect: attacks FR-109 and FR-127 name `d20.Resolver` where FR-057 and FR-110 forbid it; step 5a corrects that wording in the attacks spec |
 | P13 | Content-derived numbers (multiattack counts, recharge and limited-use maxima, spell and action list lengths, dice count and sides) were validated by Phase 2 only structurally | assumption (a new requirement the user can drop) | `combat` re-validates them at `monster-combatant-setup` (step 7f) and in the use cases that read them; a bad value is an `invalid` result. Ranges come from the specs; any content number a spec gives no range for gets a P10 cap before its cap tests land |
-| P14 | State validation versus the encounter spec: encounter-aggregate FR-009 says the root accepts only a tracker from `InitiativeOrderEstablished` and does not re-sort or re-validate it, and FR-083 says the `Combatant` constructor adds no invariant. A forged tracker or `Combatant` therefore passes through the root unvalidated | **OPEN** (needs the user if a spec amendment is wanted) | The spec wins and the plan does not override it. The plan covers forgery to the extent the specs allow (section 7). If the user wants the tracker and `Combatant` validated at the boundary, that is a spec amendment to encounter-aggregate, initiative-and-actions and hit-points-and-damage made before step 9a |
+| P14 | State validation versus the encounter spec: encounter-aggregate FR-009 says the root accepts only a tracker from `InitiativeOrderEstablished` and does not re-sort or re-validate it, and FR-083 says the `Combatant` constructor adds no invariant. A forged tracker or `Combatant` therefore passes through the root unvalidated | decided (approved by delegation) | **Decided.** The `Encounter` root validates the tracker and each `Combatant` at entry and at exit of every call, never inside the cascade loop. A zero or forged value is rejected there as an `ErrInvalidInput` error. Amended in `encounter-aggregate.md` FR-009 and FR-083 (this change). `initiative-and-actions.md` and `hit-points-and-damage.md` do not cite either row as the reason for no validation, so they are unchanged. `combatant-roster-changes.md` FR-011 still says the encounter size is not limited and cites FR-083 as the reason a joiner is unchecked. Both contradict this rule and the P10 cap, so it is amended: `combatant-roster-changes.md` FR-011 now says up to 256 combatants, and an add to a roster of 256 is `RosterLimitExceededRejection` |
 
-Two items need a user decision: **P10** (library limits) and, only if wanted,
-**P14**. P1 and P8 are the overrides worth a look before work starts. Steps 0 to 3 and then 4a to 4d can start now: P10 only holds their cap tests, not the steps.
+The three open items (P1, P10 and P14) were decided by delegation (section 4), so none needs a user decision. P8 stays an assumption the user can override. The P10 caps and their tests are built (section 5, "Limits").
 
 ## 5. Delivery sequence
 
@@ -105,7 +104,7 @@ table 4.11.
 | Step | Ships | Rank | Why here |
 |---|---|---|---|
 | 0 | Groundwork: docs, policy, `combat/doc.go`, `combat/combattest` policy | n/a | the first production file must be inside the allow-list |
-| 1 | combat-foundations | 20 | `CombatantID`, `CombatantRef`, `Event`, `Instrumenter`, `CombatRuleOptions`; everything else uses these |
+| 1 | combat-foundations | 20 | `CombatantID`, `CombatantRef`, `Event`, `Instrumenter`, `combat.RuleOptions`; everything else uses these |
 | 2 | hit-points-and-damage | 21 | `HitPointStatus`, `ApplyDamage`, Death Saving Throws; conditions and attacks need it |
 | 3 | conditions | 22 | `ConditionSet`, effective Speed, Exhaustion |
 | 4a to 4d | grappling, hiding-searching-and-senses, environment-hazards-and-objects, telepathy | 23 | independent of one another (4a, 4b and 4d need steps 1 and 3; 4c needs steps 1 to 3) |
@@ -118,6 +117,7 @@ table 4.11.
 | 11 | combatant-roster-changes | 30 | needs 4a, 5b, 6a, 9a and 10 |
 | 12 | summoned-and-companion-creatures | 31 | needs 5c, 11 **and Phase 3 steps 11b (Druid), 11e (Warlock) and 10** (P1) |
 | 13 | Whole-phase scenarios, examples, README, CHANGELOG, roadmap, spec status audit | n/a | closes the phase |
+| 14 | magical-effects use cases (RA-1) | 26 (`magical-effects`, spec built in step 7) | built after step 13: `RemoveCombatantCurse`, `ShiftCombatantShape`, `TeleportCombatant`, `ResolveEffectOrder`, `AssessAreaLocation` (5.13) |
 
 Natural stopping points that leave a coherent library: after step 3 (hit points,
 damage and conditions on a combatant), after step 6 (attacks, initiative and
@@ -156,7 +156,7 @@ turns), after step 10 (a whole encounter can be run through the public API).
 - A use case never calls another use case (`architecture.md` §4). `combat-action-resolution`
   composes domain functions, not use cases.
 - **Unhappy paths in every use-case step** (`testing.md` §4), **where the step's
-  spec has them** (the spec\x27s own rows win over this checklist, but every step keeps at least the boundary, empty or nil, immutability and cancelled-`ctx` items of `testing.md` §4 unless it says why not): an unknown `CombatantID` (an `invalid` result)
+  spec has them** (the spec's own rows win over this checklist, but every step keeps at least the boundary, empty or nil, immutability and cancelled-`ctx` items of `testing.md` §4 unless it says why not): an unknown `CombatantID` (an `invalid` result)
   and a dead, knocked-out or not-active combatant (a `refused` result);
   a failing roller and a panicking roller (`*srderr.PortError` once,
   `srderr.GuardValue`); a failing and a panicking content source; a cancelled
@@ -167,11 +167,10 @@ turns), after step 10 (a whole encounter can be run through the public API).
   has a `Fuzz*` test (`testing.md` §10), not only step 1. Each PR's
   requirement-to-test list names its `Fuzz*` targets, or says there are none
   because the step adds no such constructor.
-- **Limits (assumption, depends on P10):** once the user confirms or changes the
-  caps proposed in P10 and they are written into the spec, every collection a
-  step builds gets a typed `invalid` rejection (one shared `limit_exceeded`
-  result value) and tests at the cap and cap plus one. Until then the step ships
-  without those tests and says so. Arithmetic on host or content numbers
+- **Limits (decided, P10):** the caps of P10 are written into the spec of each
+  step that builds a collection. Every such collection gets a typed `invalid`
+  rejection (one shared `limit_exceeded` result value) and tests at the cap and
+  cap plus one. Every cap named in P10 is built and has its tests; a collection that no input can grow (a condition set holds one condition per kind in a fixed array; an item-use value holds at most three pieces) needs none, and a limit no call can reach is tested where it can be (the step budget on the accumulator). Arithmetic on host or content numbers
   (damage multipliers, Temporary Hit Points sums, durations in rounds, grid
   coordinates and squared distances, weight sums) gets overflow tests at the
   limits of the quantity; the content suite also runs at 32-bit width today, so
@@ -221,7 +220,7 @@ affected; no consumer monitoring; nothing noisy.
 
 `CombatantID`, `CombatantKind` (`PlayerCharacterCombatant`, `MonsterCombatant`),
 `CombatantRef`, the sealed `Event` interface and `Event.Kind()`, the transport
-envelope marker, `CombatOperation`, `CombatResultClass`, `CombatRuleOptions` and
+envelope marker, `CombatOperation`, `CombatResultClass`, `combat.RuleOptions` and
 `PlayingOnAGrid`, `Instrumenter` with `NewInstrumenter(t, clock)`, and the shared
 signals `srd5e.combat.*`. Also `combat/combattest` event-family checks.
 **Reuse:** `character.Identifier`, `content.MonsterID`, `telemetry.StartTimer`,
@@ -230,7 +229,7 @@ the `d20.NewResolver` option shape, `rule-options.md` pattern.
 equal ids), table rows for the result-class mapping, the FR-025 reserved-name
 list as an archtest case, a self-test of the `combattest` event-family helper
 against a fake family (good family passes; aliased slice, duplicate, unordered
-list and wrong marker fail). `Instrumenter` tested with `telemetrytest`: one
+list fail; the family marker is unexported, so no outside fake can carry a wrong one). `Instrumenter` tested with `telemetrytest`: one
 counter increment per call, refusal gives no error status, a `*srderr.PortError`
 is recorded once under `srd5e.combat.errors` with `error.type`, Noop versus
 recording bundle give identical results. `Fuzz*` for `NewCombatantID`.
@@ -257,7 +256,7 @@ test.
 
 `HitPointStatus`, temporary Hit Points, `ApplyDamage` and healing, Resistance,
 Vulnerability and Immunity order, Massive Damage, Dying, Stable, Death Saving
-Throws (a D20 Test through `d20`), knock-out, `Bloodied` via the single
+Throws (a D20 Test that keeps the die `modifier.RollMode.Select` picks and adds the host's modifier, not `d20.ResolveCheck`; hit-points-and-damage FR-061), knock-out, `Bloodied` via the single
 `character` predicate.
 **Reuse:** `d20.ResolveCheck` and reroll operations, `dice.Roller`,
 `character.IsBloodied` (the only Bloodied predicate; do not add another),
@@ -298,7 +297,7 @@ stacking and removal, Unconscious ending with Prone persisting (D-7), Exhaustion
 at 0, 1, 5, 6 and 7, order independence of sources, immutability (copies), a
 duplicate source rejected (D-9), Speed forced below 0 floored at 0 (D-8),
 Immunity suppressing an existing condition without deleting it (D-5), a
-conditions-per-creature bound at the cap and cap plus one (gated, P10), and `Fuzz*` for
+no conditions-per-creature cap test, because the set stores one condition per kind in a fixed array (P10 needs none here), and `Fuzz*` for
 any new parser.
 **Observability:** `conditions` defines three use cases (`apply_condition_to_set`,
 `remove_condition_from_set`, `reduce_exhaustion_on_set`, conditions FR-119 to
@@ -370,7 +369,7 @@ and reason after a content change.
 - **6b item-use-effects.md**: using items in combat; needs 4c.
 
 **Tests:** as 5.5; tracker value-equality rows, initiative ties, advance across
-rounds, an effect on its last round, a ready-action chain stopped by the step budget (gated, P10), and the out-of-turn and wrong-owner refusals.
+rounds, an effect on its last round, a ready-action chain that cannot reach the step budget inside one call (`initiative-and-actions.md` Limits; the budget is decided and nothing is built for it), and the out-of-turn and wrong-owner refusals.
 **Observability:** 6a follows `initiative-and-actions` section 7, including its
 surviving signals (`initiative_ties`, `initiative_counts`, `turn_movement_spent`)
 and its ban on per-turn counters such as `turns_started` (FR-103). 6b follows its
@@ -386,7 +385,7 @@ the process-contract unhappy paths covered.
 | 7a | `monster-limited-use.md` | uses `rests-and-hit-dice` recharge mapping; roadmap Phase 4 item |
 | 7b | `magical-effects.md` | needs `attacks` (5a); large (148 ids), split into types then rules if it exceeds a reviewable size |
 | 7c | `movement-lifting-and-flight.md` | uses `character` equipment rule maths |
-| 7d | `grid-positions-and-movement.md` | reads `CombatRuleOptions.Grid` from step 1 |
+| 7d | `grid-positions-and-movement.md` | reads `combat.RuleOptions.Grid` from step 1 |
 | 7e | `readying-a-spell.md` | small |
 | 7f | `monster-combatant-setup.md` | `SetUpMonsterCombatant`; other files stay pure (FR-045); bundled monsters beyond the slice are D |
 
@@ -436,14 +435,14 @@ marker. Then, independently: 9b `active-effects`, 9c `spell-granted-modifiers`,
 the zero value is invalid (tracker and `Combatant` forgery only as far as encounter-aggregate FR-009 and FR-083 allow, P14) and cannot skip invariants (the type is opaque: unexported
 fields, copies in and out, so a host alias cannot change state mid-resolution);
 a duplicate `CombatantID` rejected; nil versus empty rosters; a roster at the
-cap and cap plus one (gated, P10); the cost of per-call validation stated and tested by
-operation count with roster, effects and cascade at their caps (gated, P10); state-in/state-out transitions (inputs unmodified); equal-encounter rows
+cap and cap plus one (built, P10); the cost of per-call validation stated and tested by
+operation count with the roster and the cascade at their caps (built, P10; the effects registry is validated by `NewActiveEffects` and is not part of the root's passes: active-effects.md section 11); state-in/state-out transitions (inputs unmodified); equal-encounter rows
 (table 4.11.1); the per-turn Death Saving Throw flag. 9b to 9h: concentration
 and duration expiry on the last round; dispel with no matching effect, a
 counterspell with no slot or the wrong level, a dispel DC at the boundary; a
 zone expiring on its last round; rule interactions between active effects and
-conditions; effect lists at the cap and cap plus one (gated, P10); `Fuzz*` for any new parser.
-Named boundaries for 9b to 9h: 9b an active effect on its last round and the round after; 9c a granted modifier stacking at the cap of the spec; 9d a zone entered and left on the same turn; 9e a dispel DC and a counterspell level at the boundary; 9f a shape-change on its last round and at 0 Hit Points; 9g revival at the edge of its window; 9h a table roll at its first and last entries.
+conditions; effect lists at the cap and cap plus one (built, P10); `Fuzz*` for any new parser.
+Named boundaries for 9b to 9h: 9b an active effect on its last round and the round after; 9c a granted modifier stacking at the cap of the spec; 9d a zone entered and left on the same turn; 9e a dispel DC at the boundary, and a counterspell level at the boundary (waived: FR-038 is a host obligation, and `CastObservation` carries no slot level, so no domain test can show a wrong level; recorded in `doc/specs/dispel-and-counterspell.md` section 11); 9f a shape-change on its last round and at 0 Hit Points; 9g revival at the edge of its window; 9h a table roll at its first and last entries.
 **Observability:** each follows its spec's section 7. 9a keeps the aggregate's
 surviving signals and its `invalid` results (`unknown_combatant`,
 `invalid_encounter`, encounter-aggregate FR-095), and removes the superseded
@@ -470,13 +469,13 @@ explicitly: a dead, knocked-out, not-active or unknown `CombatantID` acting (eac
 refusal asserted by exact value); a cancelled `ctx`; a failing and a panicking
 roller and content source (`*srderr.PortError` once, the input `Encounter`
 unchanged); Advantage and Disadvantage together and stacked conditions; a
-reaction, counterspell or readied-action cascade stopped at the step budget and at budget plus one (gated, P10), with a typed `invalid` result carrying the shared `limit_exceeded` value (if P10 adopts it); a cycle in
+reaction, counterspell or readied-action cascade stopped by the step budget (1000) and the events cap (4096), both decided and built: the budget is tested at 1000 and 1001 on the call accumulator, because no call can take that many steps, and the events cap at 4096 and 4097 through five use cases (the other four cannot reach it); each breach is a typed `invalid` result carrying the shared `limit_exceeded` value; a cycle in
 containment, mount or summon links rejected iteratively. The plan's scripted
 round runs as a scenario in this step, not step 13.
-**Observability:** the seven questions, answered from the spec\x27s section 7. Failure
+**Observability:** the seven questions, answered from the spec's section 7. Failure
 modes: a port failure mid-resolution (`error.type`, once, state unchanged), a
 refused action (`refused` class with its result value), an unknown combatant
-(`invalid`), a step-budget breach (the shared `limit_exceeded` result value, if P10 adopts it) and
+(`invalid`), a breach of the events cap or the step budget (the shared `limit_exceeded` result value) and
 an invalid mid-resolution state. Each entry point is one `Instrumenter`
 operation. Step 10 also records the use cases that amendments to
 `readying-a-spell` and `telepathy` assign to `combat-action-resolution`
@@ -501,10 +500,10 @@ advancing; every T id tested and the process-contract unhappy paths covered.
 
 **Tests:** step 11 named cases: removing the combatant whose turn it is,
 removing the last combatant, adding a duplicate id, adding mid-round, the tracker
-index adjusted after a removal, a roster at the cap and cap plus one (gated, P10). Step
+index adjusted after a removal, a roster at the cap and cap plus one (built, P10). Step
 12 named cases: a summoned creature outliving its summoner, a duplicate
 `SummonedLink`, a link cycle (A summons B summons A) rejected iteratively, summons
-per summoner at the cap and cap plus one (gated, P10), and a refused Attack action for a
+per summoner at the cap and cap plus one (built, P10), and a refused Attack action for a
 familiar (FR-048). Both add the process-contract unhappy paths.
 **Observability:** each follows its spec's section 7 (operations, `result` values
 and extras such as `roster_reason`, `summon_kind` and `summon_end_cause` as closed
@@ -547,6 +546,24 @@ alone is not an alarm, because it includes every refusal.
 **Acceptance:** `just check` green; `GOARCH=386 go test ./content/... ./combat/...`
 green.
 
+### 5.13 Step 14: the magical-effects use cases (RA-1)
+
+Built after step 13 closed the audit. [magical-effects](../specs/magical-effects.md)
+FR-148 asks for five use cases over the pure services it already holds, and FR-144
+asks for the result class of each rejection result: `RemoveCombatantCurse`,
+`ShiftCombatantShape`, `TeleportCombatant`, `ResolveEffectOrder` and
+`AssessAreaLocation` (`combat/magical_effects_usecase.go`). Each runs in one
+`CombatTelemetry` operation, returns the owner's closed result unchanged, takes no
+Encounter and no ledger, rolls no die and calls no port. The roadmap Phase 4
+entry records the step; the operation lists of `combat-action-resolution` FR-168
+and FR-170 name them.
+
+**Tests:** unit and use-case tests named after `magical_effects_usecase.go`, with the
+invalid-input and result-class cases of FR-144.
+**Observability:** five operations on the shared signals; no new metric.
+**Rollback:** revert the PR; nothing depends on it.
+**Acceptance:** `just check` green.
+
 ## 6. Verification commands
 
 ```sh
@@ -564,18 +581,18 @@ earlier** by the Phase 2 decoder. `combat` is the first context to interpret
 monster content, so content-derived numbers are re-validated rather than trusted
 (P13); saved encounter state is treated as untrusted input.
 
-| Concern | Worst case | Recommended handling (the specs win; items marked P10 or assumption are proposals) |
+| Concern | Worst case | Handling (the specs win; the P10 caps are decided and built, the items marked assumption can be overridden) |
 |---|---|---|
 | Hostile command values (ids, damage, counts, positions) | an invalid state reaches the aggregate, or a panic crashes the host | every constructor validates and returns a typed error (`srderr.ErrInvalidInput`); exported APIs never panic on input; fuzz every new `NewX`/`ParseX` (process contract); tests walk the invalid-input list of `testing.md` §4 |
-| Arithmetic overflow | a damage multiplier, Temporary Hit Points sum, duration in rounds, grid distance (`x*x+y*y`) or weight sum wraps and yields a wrong result | grid coordinates are bounded by `grid-positions-and-movement` D-8; bounds on durations and damage are P10 proposals; overflow-safe arithmetic with tests at the limits of each quantity (process contract, "Limits") |
-| Resource exhaustion: collections | a host or corrupt saved state passes a huge roster, effect list, summon set, event list or grid footprint into an O(n squared) path (targeting, dispel planning, duplicate-id checks; a 1,000 by 1,000 footprint copied per call) | **P10 (open):** a cap per collection, proposed in P10 for the user to approve or change and then written into the spec, with a typed `invalid` rejection and tests at cap and cap plus one. Until then the affected steps ship without their cap tests. A cap breach uses one shared `limit_exceeded` result value so the `result` set does not multiply per collection |
-| Resource exhaustion: cascades and cycles | reaction, counterspell-on-counterspell, readied-action and summon-triggers-summon chains, or a grapple, engulf, mount or summon-link cycle, make one call run unbounded | **P10 (open):** an iterative step budget per call with a typed refusal, and cycle rejection **at link creation** (an invariant of the registry; a saved state that already holds a cycle is rejected by the validation of a registry the root owns, as far as P14 allows; this is a proposal). No recursion on input shape. Tested at budget and budget plus one |
+| Arithmetic overflow | a damage multiplier, Temporary Hit Points sum, duration in rounds, grid distance (`x*x+y*y`) or weight sum wraps and yields a wrong result | grid coordinates are bounded by `grid-positions-and-movement` D-8; bounds on durations and damage are P10 caps; overflow-safe arithmetic with tests at the limits of each quantity (process contract, "Limits") |
+| Resource exhaustion: collections | a host or corrupt saved state passes a huge roster, effect list, summon set, event list or grid footprint into an O(n squared) path (targeting, dispel planning, duplicate-id checks; a 1,000 by 1,000 footprint copied per call) | **P10 (decided and built):** a cap per collection, written into the spec of the step that builds it, with a typed `invalid` rejection (`LimitExceededError`, `LimitExceededProblem` or the variant of the result) and tests at cap and cap plus one. A cap breach uses one shared `limit_exceeded` result value so the `result` set does not multiply per collection |
+| Resource exhaustion: cascades and cycles | reaction, counterspell-on-counterspell, readied-action and summon-triggers-summon chains, or a grapple, engulf, mount or summon-link cycle, make one call run unbounded | **P10 (decided and built):** an iterative step budget per call (1000) with the typed `limit_exceeded` result, and cycle rejection **at link creation** (an invariant of the registry; a saved state that already holds a cycle is rejected by the validation of a registry the root owns, as far as P14 allows). No recursion on input shape. The budget is tested at 1000 and 1001 on the call accumulator, since no call can reach it |
 | Dice and randomness | a biased, failing or panicking roller; a roller returning 0, a negative or a value above the die sides; a single expression with a huge dice count | only `dice.Roller`; failure wrapped once with `srderr.WrapPort`; a panic mid-resolution leaves the input state unchanged (state in, state out), tested. **Assumption (A-roll):** an out-of-range roll is treated as a port failure, as `dice` contract tests already require of a roller; hit-points-and-damage treats the d20 face 0 or 21 as invalid input, and the spec wins where the two differ. A dice-count cap joins P10 and P13 |
 | Port failure and panics | a content source error or panic escapes as a crash | use cases call `srderr.GuardValue` at the port boundary; recorded once (span, counter), not logged |
-| State forgery | a host passes an `Encounter` or registry that breaks an invariant (a duplicate id, a zero value, nil collections, an alias mutated mid-resolution), or a tracker or `Combatant` that was never validated | **Bounded by the specs (P14).** The root validates what it owns (unique `CombatantID`s, its own markers, link graphs at creation) and exposes only opaque values (unexported fields, copies in and out, zero value invalid and documented). encounter-aggregate FR-009 and FR-083 say the root does not re-validate a tracker from `InitiativeOrderEstablished` and that `Combatant` adds no invariant; those specs win. Assumption: validation runs once at entry and once at exit of a call, never inside the cascade loop, at a stated cost tested by operation count with roster, effects and cascade at their caps, not by timing |
+| State forgery | a host passes an `Encounter` or registry that breaks an invariant (a duplicate id, a zero value, nil collections, an alias mutated mid-resolution), or a tracker or `Combatant` that was never validated | **Decided and built (P14).** The root validates what it owns (unique `CombatantID`s, its own markers, link graphs at creation) and, at entry and exit of every call, the tracker and each `Combatant` (encounter-aggregate FR-009 and FR-083, amended), and exposes only opaque values (unexported fields, copies in and out, zero value invalid and documented). Validation runs once at entry and once at exit of a call, never inside the cascade loop, at a stated cost tested by operation count with roster, effects and cascade at their caps, not by timing |
 | Acting out of turn or for another owner | a command names a combatant that is not the active one, is dead or absent, or a reaction by a non-owner: the library's privilege-escalation analogue | an unknown `CombatantID` is an `invalid` result; a dead, absent-from-turn or not-active combatant is a `refused` result (combat-foundations FR-031 draws the line); never an error, asserted by exact value in steps 6a, 9a and 10 |
 | Content-derived numbers | a decoded `Monster` carries hostile counts (a multiattack of 10^9, recharge maxima, long action or spell lists, huge dice expressions) that Phase 2 validated only structurally | P13 (assumption, droppable by the user): `combat` re-validates at `monster-combatant-setup` and where it reads them; a bad value is an `invalid` result. Any content number a spec gives no range for gets a P10 cap before its cap tests land |
-| Events | an unbounded or aliasing event list | events per call are bounded by the events cap of P10 (a proposal); returned slices are copies and events hold no pointers into aggregate state (checked by the `combattest` event-family helper) |
+| Events | an unbounded or aliasing event list | events per call are bounded by the events cap of P10 (4096, built); returned slices are copies and events hold no pointers into aggregate state (checked by the `combattest` event-family helper) |
 | Telemetry disclosure | combatant ids, content ids or free-form keys (for example `OtherEffectOrigin`) in attributes, or high-cardinality values | attributes are low-cardinality enums only (`srd5e.combat.operation`, `result`, `result_class`, outcome); content ids and free-form keys never become attribute values; size histograms use fixed buckets |
 | Data provenance | non-SRD or trademarked text enters tests or fixtures | AGENTS.md rule, A10 denylist; fixtures synthetic |
 | Authn, injection, cross-tenant data | none | N/A: a library with no I/O; `os`, `net`, `reflect` denied in `combat` (A3) |
@@ -605,10 +622,10 @@ an existing file is fixed in the same PR, never skipped.
 | A late `character` API gap found in Phase 4 | amendment request to the user, never a silent `character` edit in a `combat` PR |
 | Gomu is slow on a large package | per-file runs only, one at a time, capped; manual fallback documented |
 | One package grows large (36 specs' names) | one file per concept; FR-025 reserved names pinned by archtest; compile time watched in CI; splitting a context is an architecture change and goes to the user |
-| Phase 3 not yet finished when Phase 4 starts | P1 gate: Phase 3 steps 0 to 7c merged first; step 12 also waits for Phase 3 steps 11b, 11e and 10 |
-| No library-level limits in the specs (P10) | the user approves or changes the proposed caps; each step ships without its cap and budget tests until then and says so; each PR amends its spec when the numbers are set |
+| Phase 3 not yet finished when Phase 4 starts | P1 gate, met: Phase 3 is merged, step 12 was built after Phase 3 steps 11b, 11e and 10, and the class-dependent D ids were re-checked and none moved to T |
+| No library-level limits in the specs (P10) | the caps are decided by delegation and built; each spec carries its caps and its cap and cap-plus-one tests; the step budget and four of the nine events checks are not reachable by any input, so they are tested on the accumulator or not built, as the spec records |
 | Superseded signal names left in the catalogue (P11) | catalogue check in step 1, per-step migration, audit in step 13 |
-| A forged tracker or `Combatant` passes the encounter root unvalidated (P14) | the specs win (encounter-aggregate FR-009 and FR-083); the user decides before step 9a whether to amend them; section 7 covers forgery only as far as the specs allow |
+| A forged tracker or `Combatant` passes the encounter root unvalidated (P14) | decided and built: the root validates the tracker and each `Combatant` at entry and exit of every call (encounter-aggregate FR-009 and FR-083, amended); a zero or forged value is an `ErrInvalidInput` error |
 
 ## 10. Out-of-scope observations (recorded, not acted on)
 
